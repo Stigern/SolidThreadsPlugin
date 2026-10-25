@@ -178,36 +178,115 @@ def tolerance_class(offset: float) -> str:
     return f"O.{round(offset * 10, 2):g}" if offset < 1 else f"O+{offset:g}"
 
 
+# The ISO basic thread height (5H/8, radial) as a fraction of the pitch. SolidCraft
+# cuts an external thread's root this deep below its major diameter; an internal
+# thread's teeth reach in as far as the hole lets them.
+ISO_HEIGHT = 0.54127
+
+
+def thread_geometry(diameter: float, pitch: float, offset: float, internal: bool,
+                    height: float = 1.0) -> dict:
+    """The diameters a thread is cut at.
+
+    `designation`: what SolidCraft cuts (the nominal diameter, `offset` looser).
+    `surface`: the diameter the shaft or hole is set to first so the teeth come out
+    `height` (0-1] of the full ISO height, or None to leave the face as it is.
+    A lower thread flattens the tops of the teeth only, on both parts, so the
+    flanks stay where a full thread has them and a bolt and nut of the same
+    height still fit; they engage over less depth."""
+    h0 = ISO_HEIGHT * pitch
+    trim = (1.0 - height) * h0
+    if internal:
+        d = diameter + offset
+        surface = d - 2 * h0 + 2 * trim if height < 1.0 else None  # the hole
+    else:
+        d = diameter - offset
+        surface = d - 2 * trim if height < 1.0 else None  # the shaft
+    return {"designation": designation(d, pitch), "surface": surface,
+            "tooth": height * h0}
+
+
+def _point_at_radius(info: dict, point, radius: float):
+    """The selected point moved radially (from the thread axis) to `radius`."""
+    a = info["axis"]
+    o = info["axis_point"]
+    n = sum(x * x for x in a) ** 0.5 or 1.0
+    a = [x / n for x in a]
+    v = [p - q for p, q in zip(point, o)]
+    along = sum(x * y for x, y in zip(v, a))
+    foot = [q + along * x for q, x in zip(o, a)]
+    r = [p - f for p, f in zip(point, foot)]
+    rn = sum(x * x for x in r) ** 0.5 or 1.0
+    return [f + radius * x / rn for f, x in zip(foot, r)]
+
+
+def _unique_name(c: Client, base: str) -> str:
+    try:
+        taken = {t.get("name") for t in c.call("document.inspect").get("timeline") or []}
+    except RuntimeError:
+        taken = set()
+    label, k = base, 2
+    while label in taken:
+        label = f"{base} ({k})"
+        k += 1
+    return label
+
+
 def add_thread(c: Client, face: dict, diameter: float, pitch: float, offset: float,
-               internal: bool, length: float | None = None, modeled: bool = True) -> dict:
+               internal: bool, length: float | None = None, height: float = 1.0,
+               info: dict | None = None, modeled: bool = True) -> dict:
     """Cut a thread into the face, looser by `offset` mm on the diameter.
 
     As in CustomThreads' tolerance classes (O.0, O.1, O.2, O.4, O.8): an external
     thread's major, pitch and minor diameters get `offset` smaller, an internal
-    thread's `offset` larger; the pitch stays. One undoable step in SolidCraft
-    (plus a rename of the new feature)."""
-    d = diameter + (offset if internal else -offset)
-    params = {"face": face["point"], "designation": designation(d, pitch), "modeled": modeled}
+    thread's `offset` larger; the pitch stays. With `height` below 1 the face is
+    first offset (a shaft thinner, a hole wider, see thread_geometry) so the
+    teeth come out lower with flat tops. `info` is probe_face's result for the
+    face. Each step is undoable in SolidCraft; the steps are named and, when
+    there are two, grouped in the timeline."""
+    geo = thread_geometry(diameter, pitch, offset, internal, height)
+    point = face["point"]
+    nominal = f"M{diameter:g}x{pitch:g}"
+    kind = "Internal" if internal else "External"
+    tag = f"{kind} {nominal} {tolerance_class(offset)}" + \
+        (f" {round(height * 100):g}%" if height < 1.0 else "")
+    features = []
+    if geo["surface"] is not None:
+        if not info or not info.get("face_diameter") or not info.get("axis"):
+            raise RuntimeError("Can't read the face's size, so a lower thread can't be made.")
+        now = info["face_diameter"]
+        # positive moves the face out of the material: a shaft thicker, a hole narrower
+        dist = (geo["surface"] - now) / 2 * (-1 if internal else 1)
+        if abs(dist) > 1e-4:
+            res = c.execute("solid.offset_face", {"faces": [point], "distance": f"{dist:.4f} mm"})
+            f = (res or {}).get("feature")
+            if f is not None:
+                features.append(f)
+                try:
+                    c.execute("timeline.rename", {"feature": f, "name": _unique_name(
+                        c, f"{'Hole' if internal else 'Shaft'} Ø{geo['surface']:.3g} for {tag}")})
+                except RuntimeError:
+                    pass
+            point = _point_at_radius(info, point, geo["surface"] / 2)
+    params = {"face": point, "designation": geo["designation"], "modeled": modeled}
     if length:
         params["length"] = f"{length:g} mm"
     res = c.execute("solid.thread", params)
-    nominal = f"M{diameter:g}x{pitch:g}"
-    base = f"{'Internal' if internal else 'External'} {nominal} {tolerance_class(offset)}"
-    label = base
+    label = tag
     feature = (res or {}).get("feature")
     if feature is not None:
-        # timeline names are unique: number repeats
-        try:
-            taken = {t.get("name") for t in c.call("document.inspect").get("timeline") or []}
-        except RuntimeError:
-            taken = set()
-        k = 2
-        while label in taken:
-            label = f"{base} ({k})"
-            k += 1
+        features.append(feature)
+        label = _unique_name(c, tag)
         try:
             c.execute("timeline.rename", {"feature": feature, "name": label})
         except RuntimeError:
             label = (res or {}).get("name") or label  # the thread is in; the name is a convenience
-    return {"feature": feature, "name": label, "designation": params["designation"],
+        if len(features) > 1:
+            try:
+                c.execute("timeline.group", {"name": _unique_name(c, f"Thread {label}"),
+                                             "features": features})
+            except RuntimeError:
+                pass
+    return {"feature": feature, "name": label, "designation": geo["designation"],
+            "surface": geo["surface"], "tooth": geo["tooth"], "steps": len(features),
             "thread": (res or {}).get("thread")}

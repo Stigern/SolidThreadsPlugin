@@ -54,6 +54,21 @@ each diameter (a shaft 0.2 mm smaller, a hole 0.2 mm larger). Printing both a
 bolt and a nut? Give both a class: start with O.2 on both, go to O.4 if it's
 tight, O.1 if it's loose. Any number in mm works too.
 
+**Height** sets how far the teeth stick out: 100% is the full ISO height, 90%,
+80% and 70% give lower teeth with flat tops. The shaft is first made thinner
+(or the hole wider) and then threaded, so only the tips of the teeth go; the
+flanks stay where they are, and a bolt and nut with the same height still fit.
+They grip over less depth: for M10x2.5 with O.2 the grip is 1.16 mm at 100%,
+0.62 mm at 80% and 0.35 mm at 70%. Use the same height on both parts. A lower
+thread is two steps in the timeline (the face change and the thread), grouped
+in a folder, so Ctrl+Z twice undoes it.
+
+The drawing under the settings is a to-scale section through a bolt and a nut
+with the current settings: pitch, height, grip, the tolerance gap and the
+nominal diameter. Hover over a setting (or click into it) to see its part of
+the drawing highlighted. The window follows SolidCraft's light or dark theme
+(or Windows' when SolidCraft isn't running).
+
 Threads are cut into the whole body, and SolidCraft turns every round face of
 that body into small flat facets. Keep separate parts as separate bodies
 (*New Body* when you extrude) so only the threaded part is affected.

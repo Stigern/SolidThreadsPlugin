@@ -10,7 +10,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import sc_live
+import theme
 import threadgen as tg
+from theme import PAL
 
 # bundled files live next to the script, or in PyInstaller's unpack folder
 HERE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -41,8 +43,9 @@ class Tip:
         self.win = tk.Toplevel(self.widget)
         self.win.wm_overrideredirect(True)
         self.win.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.win, text=self.text, justify="left", background="#ffffe0",
-                 relief="solid", borderwidth=1, padx=6, pady=4).pack()
+        tk.Label(self.win, text=self.text, justify="left", background=PAL["tip_bg"], foreground=PAL["tip_fg"],
+                 relief="solid", borderwidth=1, padx=6, pady=4,
+                 highlightbackground=PAL["border"]).pack()
 
     def hide(self, _):
         if self.win:
@@ -70,7 +73,7 @@ class App(ttk.Frame):
         right.columnconfigure(0, weight=1)
         right.rowconfigure(0, weight=1)
         self.canvas = tk.Label(right, text="Press Preview to render the part\nin SolidCraft",
-                               anchor="center", background="#eef0f3")
+                               anchor="center", background=PAL["preview_bg"], foreground=PAL["dim"])
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.info = ttk.Label(right, text="", justify="left")
         self.info.grid(row=1, column=0, sticky="w", pady=(6, 0))
@@ -107,7 +110,7 @@ class App(ttk.Frame):
         lab.grid(row=r, column=0, sticky="w", pady=2)
         widget.grid(row=r, column=1, sticky="ew", pady=2)
         if unit:
-            ttk.Label(parent, text=unit, foreground="#666").grid(row=r, column=2, sticky="w", padx=(4, 0))
+            ttk.Label(parent, text=unit, foreground=PAL["dim"]).grid(row=r, column=2, sticky="w", padx=(4, 0))
         if help_key:
             Tip(lab, HELP[help_key])
             Tip(widget, HELP[help_key])
@@ -176,7 +179,7 @@ class App(ttk.Frame):
         ]
         for r, (key, label, w, unit) in enumerate(items):
             lab = ttk.Label(g, text=label)
-            un = ttk.Label(g, text=unit, foreground="#666")
+            un = ttk.Label(g, text=unit, foreground=PAL["dim"])
             self.dim_rows[key] = (lab, w, un, r)
 
         # output
@@ -419,6 +422,122 @@ class App(ttk.Frame):
         self._work("Opening in SolidCraft…", fn, done)
 
 
+class ThreadDiagram(tk.Canvas):
+    """A to-scale section through a bolt and nut with the current settings.
+
+    Two pitches of the ISO basic profile along the axis: the nut on top, the bolt
+    below, the gap between them coloured. Each setting has its own mark (pitch,
+    height, grip, tolerance gap, nominal diameter); the one being hovered or
+    edited is drawn in the accent colour."""
+
+    def __init__(self, parent):
+        self.s = float(parent.tk.call("tk", "scaling")) / (96 / 72)  # 1 at 96 dpi
+        self.W, self.H = int(430 * self.s), int(222 * self.s)
+        super().__init__(parent, width=self.W, height=self.H, highlightthickness=0,
+                         background=PAL["bg"])
+
+    def _font(self, on, size=8):
+        return ("Segoe UI", size, "bold" if on else "normal")
+
+    def draw(self, d, p, o, height, key=None):
+        s, P = self.s, p
+        self.delete("all")
+        geo_b = sc_live.thread_geometry(d, p, o, False, height)
+        geo_n = sc_live.thread_geometry(d, p, o, True, height)
+        R = d / 2
+        h0 = sc_live.ISO_HEIGHT * p
+        trim = (1 - height) * h0
+        b_crest = R - o / 2 - trim            # shaft surface
+        n_crest = R + o / 2 - h0 + trim       # hole surface
+
+        def basic(z):  # ISO basic profile: crest flat P/8 at R, root flat P/4 at R - h0
+            u = z % P
+            u = min(u, P - u)
+            if u <= P / 16:
+                return R
+            if u <= 0.375 * P:
+                return R - (u - P / 16) * h0 / (0.3125 * P)
+            return R - h0
+
+        x0, x1 = 46 * s, self.W - 158 * s           # plot area
+        y0, y1 = 10 * s, self.H - 58 * s
+        z0, z1 = -0.7 * P, 1.7 * P
+        r_lo, r_hi = R - o / 2 - h0 - 0.45 * h0, R + o / 2 + 0.45 * h0
+        X = lambda z: x0 + (z - z0) / (z1 - z0) * (x1 - x0)
+        Y = lambda r: y0 + (r_hi - r) / (r_hi - r_lo) * (y1 - y0)
+        on = lambda k: key == k
+        col = lambda k: PAL["accent"] if on(k) else PAL["dim"]
+
+        # the gap is what shows between the two parts
+        self.create_rectangle(x0, y0, x1, y1, fill=PAL["gap"] if on("tolerance") else PAL["gap_dim"],
+                              outline="")
+        n = 240
+        zs = [z0 + (z1 - z0) * i / n for i in range(n + 1)]
+        nut = [(X(z), Y(max(basic(z) + o / 2, n_crest))) for z in zs]
+        bolt = [(X(z), Y(min(basic(z) - o / 2, b_crest))) for z in zs]
+        self.create_polygon([(x0, y0)] + nut + [(x1, y0)], fill=PAL["nut"], outline=PAL["line"])
+        self.create_polygon([(x0, y1)] + bolt + [(x1, y1)], fill=PAL["bolt"], outline=PAL["line"])
+        self.create_text(x0 + 5 * s, y0 + 4 * s, text="nut / hole", anchor="nw",
+                         fill=PAL["nut_text"], font=self._font(False))
+        self.create_text(x0 + 5 * s, y1 - 4 * s, text="bolt / shaft", anchor="sw",
+                         fill=PAL["bolt_text"], font=self._font(False))
+
+        # nominal diameter
+        yR = Y(R)
+        self.create_line(x0 - 6 * s, yR, x1, yR, fill=col("diameter"), dash=(3, 3),
+                         width=2 if on("diameter") else 1)
+        self.create_text(x0 - 8 * s, yR, text=f"Ø{d:g}", anchor="e", fill=col("diameter"),
+                         font=self._font(on("diameter")))
+
+        # pitch: crest to crest, under the drawing
+        yp = y1 + 14 * s
+        for z in (0, P):
+            self.create_line(X(z), Y(b_crest), X(z), yp + 4 * s, fill=col("pitch"), dash=(2, 3))
+        self.create_line(X(0), yp, X(P), yp, fill=col("pitch"), arrow="both",
+                         width=2 if on("pitch") else 1)
+        self.create_text((X(0) + X(P)) / 2, yp + 3 * s, text=f"pitch {p:g} mm", anchor="n",
+                         fill=col("pitch"), font=self._font(on("pitch")))
+
+        # height of the bolt's teeth, and the grip between the parts, on the right
+        xa, xb, xt = x1 + 12 * s, x1 + 24 * s, x1 + 34 * s
+        b_root = R - o / 2 - h0
+        for r in (b_root, b_crest):
+            self.create_line(X(P * 1.5), Y(r), xa + 4 * s, Y(r), fill=col("height"), dash=(2, 3))
+        self.create_line(xa, Y(b_root), xa, Y(b_crest), fill=col("height"), arrow="both",
+                         width=2 if on("height") else 1)
+        self.create_text(xt, Y(b_root), text=f"height {height * h0:.2f} mm ({height:.0%})",
+                         anchor="sw", fill=col("height"), font=self._font(on("height")))
+        grip = b_crest - n_crest
+        gcol = PAL["err"] if grip < 0.3 * h0 else col("height")
+        if grip > 0:
+            self.create_line(X(P * 1.1), Y(n_crest), xb + 4 * s, Y(n_crest), fill=gcol, dash=(2, 3))
+            self.create_line(xb, Y(n_crest), xb, Y(b_crest), fill=gcol, width=3)
+            self.create_text(xt, (Y(n_crest) + Y(b_crest)) / 2, text=f"grip {grip:.2f} mm",
+                             anchor="w", fill=gcol, font=self._font(on("height")))
+        else:
+            self.create_text(xt, (y0 + y1) / 2, text="no grip!", anchor="w", fill=PAL["err"],
+                             font=self._font(True))
+
+        # tolerance: the gap on a flank
+        zf = 0.22 * P
+        yf = (Y(basic(zf) + o / 2) + Y(basic(zf) - o / 2)) / 2
+        self.create_line(X(zf), yf, x1 + 8 * s, y0 + 8 * s, fill=col("tolerance"))
+        tol = sc_live.tolerance_class(o)
+        self.create_text(x1 + 10 * s, y0 + 8 * s, text=f"gap {tol}", anchor="w",
+                         fill=col("tolerance"), font=self._font(on("tolerance")))
+
+        # what the thread is cut as
+        cut = (f"bolt {geo_b['designation']}"
+               + (f" on Ø{geo_b['surface']:.3g}" if geo_b["surface"] else "")
+               + f"   ·   hole {geo_n['designation']}"
+               + (f" in Ø{geo_n['surface']:.3g}" if geo_n["surface"] else f" in Ø{d - p:g}"))
+        self.create_text(4 * s, self.H - 2 * s, text=cut, anchor="sw", fill=PAL["dim"],
+                         font=self._font(False, 7))
+        if on("length"):
+            self.create_text(x1, y1 + 14 * s, text="length runs along the axis →", anchor="ne",
+                             fill=PAL["accent"], font=self._font(True))
+
+
 class FaceTab(ttk.Frame):
     """Cuts a thread with print clearance into the face selected in SolidCraft."""
 
@@ -427,6 +546,7 @@ class FaceTab(ttk.Frame):
     STANDARDS = (tg.PRINTED, "ISO metric coarse", "ISO metric fine", "UNC (inch)")
     # CustomThreads' tolerance classes: O.2 = 0.2 mm off each diameter of this part
     TOLERANCES = ("O.0  tight", "O.1", "O.2", "O.4", "O.8  loose")
+    HEIGHTS = ("100%  full", "90%", "80%", "70%  low")
 
     def __init__(self, root: tk.Tk, parent):
         super().__init__(parent, padding=12)
@@ -441,16 +561,17 @@ class FaceTab(ttk.Frame):
                   wraplength=360, justify="left").grid(row=0, column=0, columnspan=3, sticky="w")
         self.b_use = ttk.Button(self, text="Use selected face", command=self.use_face)
         self.b_use.grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 2))
-        self.face_lbl = ttk.Label(self, text="No face yet.", foreground="#555",
+        self.face_lbl = ttk.Label(self, text="No face yet.", foreground=PAL["dim"],
                                   wraplength=360, justify="left")
         self.face_lbl.grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 10))
 
         ttk.Label(self, text="2.  Choose the thread.").grid(row=3, column=0, columnspan=3, sticky="w")
         r = 4
         std = ttk.Combobox(self, textvariable=var("standard", tg.PRINTED),
-                           values=self.STANDARDS, state="readonly", width=30)
+                           values=self.STANDARDS, state="readonly", width=36)
         std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
         self._row(r, "Standard", std); r += 1
+        std.grid_configure(columnspan=2)  # wide: keep the unit column close to the fields
         Tip(std, "3D-printed metric: ISO 60° profile with a coarse 2, 2.5, 3.5 or 5 mm pitch,\n"
                  "deep enough to print well at 0.2-0.3 mm layers (after CustomThreads).\n"
                  "The pitch follows the size (2 below M6, 2.5 to M16, 3.5 to M30, then 5)\n"
@@ -460,22 +581,36 @@ class FaceTab(ttk.Frame):
         self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10x2.5"), state="readonly", width=20)
         self.size_cb.bind("<<ComboboxSelected>>", lambda e: (setattr(self, "pitch_auto", False),
                                                              self._on_size()))
-        self._row(r, "Size", self.size_cb); r += 1
-        self._row(r, "Diameter", ttk.Entry(self, textvariable=var("diameter", "10"), width=10), "mm"); r += 1
+        self._row(r, "Size", self.size_cb, key="diameter"); r += 1
+        self._row(r, "Diameter", ttk.Entry(self, textvariable=var("diameter", "10"), width=10), "mm",
+                  key="diameter"); r += 1
         pitch = ttk.Entry(self, textvariable=var("pitch", "2.5"), width=10)
         pitch.bind("<Key>", lambda e: setattr(self, "pitch_auto", False))
-        self._row(r, "Pitch", pitch, "mm"); r += 1
+        self._row(r, "Pitch", pitch, "mm", key="pitch"); r += 1
         cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
-        self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter"); r += 1
+        self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter", key="tolerance"); r += 1
         Tip(cl, "How much looser than nominal this part is, on its diameter\n"
                 "(CustomThreads' classes): a bolt gets this much smaller,\n"
                 "a hole this much larger. Printed bolt + printed nut: both get it.\n"
                 "Start with O.2 on both; O.4 if tight, O.1 if loose.\n"
                 "Any number works too, e.g. 0.3.")
+        ht = ttk.Combobox(self, textvariable=var("height", "100%  full"), values=self.HEIGHTS, width=10)
+        self._row(r, "Height", ht, "how far the teeth stick out", key="height"); r += 1
+        Tip(ht, "Lower teeth with flat tops: a shaft is made thinner and a hole wider\n"
+                "before the thread is cut, so the teeth stick out less. The flanks\n"
+                "stay put, so a bolt and nut with the same height still fit, but\n"
+                "they grip over less depth (the drawing shows the grip).\n"
+                "Use the same height on both parts. 80% is a good low setting;\n"
+                "70% grips only about a quarter as deep as 100%.")
         self._row(r, "Length", ttk.Entry(self, textvariable=var("length", ""), width=10),
-                  "mm (blank = whole face)"); r += 1
+                  "mm (blank = whole face)", key="length"); r += 1
 
-        self.b_add = ttk.Button(self, text="Add thread", command=self.add)
+        self.diagram = ThreadDiagram(self)
+        self.diagram.grid(row=r, column=0, columnspan=3, sticky="w", pady=(10, 0)); r += 1
+        for k in ("diameter", "pitch", "tolerance", "height"):
+            self.v[k].trace_add("write", lambda *a: self._redraw())
+
+        self.b_add = ttk.Button(self, text="Add thread", command=self.add, style="Accent.TButton")
         self.b_add.grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 4)); r += 1
         self.status = ttk.Label(self, text="", wraplength=360, justify="left")
         self.status.grid(row=r, column=0, columnspan=3, sticky="w"); r += 1
@@ -483,13 +618,49 @@ class FaceTab(ttk.Frame):
                         command=lambda: root.attributes("-topmost", self.v["ontop"].get())
                         ).grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 0))
         root.attributes("-topmost", True)
+        self._focus_key = None
         self._on_standard()
+        self._redraw()
 
-    def _row(self, r, label, widget, unit=""):
-        ttk.Label(self, text=label).grid(row=r, column=0, sticky="w", pady=2, padx=(0, 8))
+    def _row(self, r, label, widget, unit="", key=None):
+        lab = ttk.Label(self, text=label)
+        lab.grid(row=r, column=0, sticky="w", pady=2, padx=(0, 8))
         widget.grid(row=r, column=1, sticky="w", pady=2)
+        parts = [lab, widget]
         if unit:
-            ttk.Label(self, text=unit, foreground="#666").grid(row=r, column=2, sticky="w", padx=(4, 0))
+            un = ttk.Label(self, text=unit, foreground=PAL["dim"])
+            un.grid(row=r, column=2, sticky="w", padx=(4, 0))
+            parts.append(un)
+        if key:  # point at this setting in the drawing while hovered or edited
+            for w in parts:
+                w.bind("<Enter>", lambda e, k=key: self._redraw(k), add="+")
+                w.bind("<Leave>", lambda e: self._redraw(self._focus_key), add="+")
+            widget.bind("<FocusIn>", lambda e, k=key: (setattr(self, "_focus_key", k),
+                                                       self._redraw(k)), add="+")
+            widget.bind("<FocusOut>", lambda e: (setattr(self, "_focus_key", None),
+                                                 self._redraw()), add="+")
+
+    def _height(self):
+        """"80%" (or "80%  low") -> 0.8."""
+        s = (self.v["height"].get().split() or [""])[0].rstrip("%").replace(",", ".")
+        try:
+            x = float(s)
+        except ValueError:
+            raise ValueError("Height must be a percentage, like 80%") from None
+        if not 50 <= x <= 100:
+            raise ValueError("Height must be between 50% and 100%")
+        return x / 100
+
+    def _redraw(self, key=None):
+        try:
+            d = float(self.v["diameter"].get().replace(",", "."))
+            p = float(self.v["pitch"].get().replace(",", "."))
+            o = self._tolerance()
+            h = self._height()
+        except (ValueError, KeyError):
+            return  # half-typed value: keep the last drawing
+        if d > 0 and p > 0:
+            self.diagram.draw(d, p, o, h, key)
 
     def _on_standard(self):
         table, _ = tg.STANDARDS[self.v["standard"].get()]
@@ -587,7 +758,7 @@ class FaceTab(ttk.Frame):
                 b.state(["!disabled"])
             res, err = box[0]
             if err:
-                self.status.configure(text=str(err), foreground="#b00020")
+                self.status.configure(text=str(err), foreground=PAL["err"])
             else:
                 done(res)
 
@@ -638,13 +809,14 @@ class FaceTab(ttk.Frame):
             d = self._num("diameter", "Diameter")
             p = self._num("pitch", "Pitch")
             offset = self._tolerance()
+            height = self._height()
             length = self._num("length", "Length", optional=True)
         except ValueError as e:
-            self.status.configure(text=str(e), foreground="#b00020")
+            self.status.configure(text=str(e), foreground=PAL["err"])
             return
         if offset > p / 2:
             self.status.configure(text=f"Tolerance can be at most {p / 2:g} mm for this pitch.",
-                                  foreground="#b00020")
+                                  foreground=PAL["err"])
             return
 
         remembered = self.face
@@ -658,17 +830,23 @@ class FaceTab(ttk.Frame):
                     raise
                 face = remembered
             info = sc_live.probe_face(c, face)
-            res = sc_live.add_thread(c, face, d, p, offset, info["internal"], length)
+            res = sc_live.add_thread(c, face, d, p, offset, info["internal"], length,
+                                     height=height, info=info)
             res["info"] = info
             return res
 
         def done(res):
             self.face = None  # the thread replaced that face
             self.face_lbl.configure(text=self._describe(res["info"]), foreground="")
+            how = f"cut as {res['designation']}"
+            if res.get("surface"):
+                kind = "hole" if res["info"]["internal"] else "shaft"
+                how += f", {kind} set to Ø{res['surface']:.3g} mm first"
+            undo = "Ctrl+Z twice" if res.get("steps", 1) > 1 else "Ctrl+Z"
             self.status.configure(
-                text=f"Added “{res['name']}” (cut as {res['designation']}). "
-                     "Undo with Ctrl+Z in SolidCraft. Select another face to add more.",
-                foreground="#1b7f3b")
+                text=f"Added “{res['name']}” ({how}). Undo with {undo} in SolidCraft. "
+                     "Select another face to add more.",
+                foreground=PAL["ok"])
 
         self._bg("Cutting the thread… (a few seconds)", fn, done)
 
@@ -681,10 +859,7 @@ def run_gui():
         except Exception:
             pass
     root = tk.Tk()
-    try:
-        ttk.Style(root).theme_use("vista")
-    except tk.TclError:
-        pass
+    theme.apply(root)  # dark or light, as SolidCraft (or Windows) is
     root.title(f"SolidCraft Thread Generator {tg.__version__}")
     icon = os.path.join(HERE, "icon.ico")
     if os.path.isfile(icon):
