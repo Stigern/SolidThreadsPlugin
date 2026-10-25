@@ -9,6 +9,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+import sc_live
 import threadgen as tg
 
 # bundled files live next to the script, or in PyInstaller's unpack folder
@@ -50,20 +51,9 @@ class Tip:
 
 
 class App(ttk.Frame):
-    def __init__(self, root: tk.Tk):
-        super().__init__(root, padding=10)
+    def __init__(self, root: tk.Tk, parent=None):
+        super().__init__(parent or root, padding=10)
         self.root = root
-        root.title(f"SolidCraft Thread Generator {tg.__version__}")
-        icon = os.path.join(HERE, "icon.ico")
-        if os.path.isfile(icon):
-            try:
-                root.iconbitmap(icon)
-            except tk.TclError:
-                pass
-        root.minsize(900, 560)
-        self.grid(sticky="nsew")
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -235,9 +225,7 @@ class App(ttk.Frame):
             return
         self.b_install.grid_remove()
         messagebox.showinfo("Thread Generator",
-                            f"Installed in {dest}.
-
-It now shows in SolidCraft under "
+                            f"Installed in {dest}.\n\nIt now shows in SolidCraft under "
                             "Preferences > Plugins. You can start it from that folder.")
 
     def locate(self):
@@ -431,6 +419,198 @@ It now shows in SolidCraft under "
         self._work("Opening in SolidCraft…", fn, done)
 
 
+class FaceTab(ttk.Frame):
+    """Cuts a thread with print clearance into the face selected in SolidCraft."""
+
+    # SolidCraft's Thread cuts 60° threads from an "M<diameter>x<pitch>" designation,
+    # so ISO metric and UNC sizes work; trapezoidal ones don't.
+    STANDARDS = ("ISO metric coarse", "ISO metric fine", "UNC (inch)")
+    CLEARANCES = ("0", "0.1", "0.15", "0.2", "0.25", "0.3", "0.4")
+
+    def __init__(self, root: tk.Tk, parent):
+        super().__init__(parent, padding=12)
+        self.root = root
+        self.v = {}
+        self.busy = False
+        self.face = None  # the face "Use selected face" read
+        self.columnconfigure(2, weight=1)
+        var = lambda k, val="", kind=tk.StringVar: self.v.setdefault(k, kind(value=val))
+
+        ttk.Label(self, text="1.  In SolidCraft, select a shaft's round face or the inside of a hole.",
+                  wraplength=360, justify="left").grid(row=0, column=0, columnspan=3, sticky="w")
+        self.b_use = ttk.Button(self, text="Use selected face", command=self.use_face)
+        self.b_use.grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 2))
+        self.face_lbl = ttk.Label(self, text="No face yet.", foreground="#555",
+                                  wraplength=360, justify="left")
+        self.face_lbl.grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 10))
+
+        ttk.Label(self, text="2.  Choose the thread.").grid(row=3, column=0, columnspan=3, sticky="w")
+        r = 4
+        std = ttk.Combobox(self, textvariable=var("standard", "ISO metric coarse"),
+                           values=self.STANDARDS, state="readonly", width=20)
+        std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
+        self._row(r, "Standard", std); r += 1
+        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10"), state="readonly", width=20)
+        self.size_cb.bind("<<ComboboxSelected>>", lambda e: self._on_size())
+        self._row(r, "Size", self.size_cb); r += 1
+        self._row(r, "Diameter", ttk.Entry(self, textvariable=var("diameter", "10"), width=10), "mm"); r += 1
+        self._row(r, "Pitch", ttk.Entry(self, textvariable=var("pitch", "1.5"), width=10), "mm"); r += 1
+        cl = ttk.Combobox(self, textvariable=var("clearance", "0.2"), values=self.CLEARANCES, width=8)
+        self._row(r, "Clearance", cl, "mm per side"); r += 1
+        Tip(cl, "How much looser than nominal, on each side (radius).\n"
+                "Bolts get 2x this smaller in diameter, holes 2x larger.\n"
+                "Printed bolt + printed nut: give both a clearance.\n"
+                "FDM: 0.1-0.2 per part. Resin: 0.05-0.1.")
+        self._row(r, "Length", ttk.Entry(self, textvariable=var("length", ""), width=10),
+                  "mm (blank = whole face)"); r += 1
+
+        self.b_add = ttk.Button(self, text="Add thread", command=self.add)
+        self.b_add.grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 4)); r += 1
+        self.status = ttk.Label(self, text="", wraplength=360, justify="left")
+        self.status.grid(row=r, column=0, columnspan=3, sticky="w"); r += 1
+        ttk.Checkbutton(self, text="Keep this window on top", variable=var("ontop", True, tk.BooleanVar),
+                        command=lambda: root.attributes("-topmost", self.v["ontop"].get())
+                        ).grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        root.attributes("-topmost", True)
+        self._on_standard()
+
+    def _row(self, r, label, widget, unit=""):
+        ttk.Label(self, text=label).grid(row=r, column=0, sticky="w", pady=2, padx=(0, 8))
+        widget.grid(row=r, column=1, sticky="w", pady=2)
+        if unit:
+            ttk.Label(self, text=unit, foreground="#666").grid(row=r, column=2, sticky="w", padx=(4, 0))
+
+    def _on_standard(self):
+        table, _ = tg.STANDARDS[self.v["standard"].get()]
+        self.size_cb.configure(values=list(table))
+        if self.v["size"].get() not in table:
+            self.v["size"].set("M10" if "M10" in table else next(iter(table)))
+        self._on_size()
+
+    def _on_size(self):
+        d, p = tg.STANDARDS[self.v["standard"].get()][0][self.v["size"].get()]
+        self.v["diameter"].set(f"{d:g}")
+        self.v["pitch"].set(f"{p:.4g}")
+
+    def _pick_size(self, d, p):
+        """Select the standard size matching diameter d and pitch p, if there is one."""
+        for std in self.STANDARDS:
+            for name, (d0, p0) in tg.STANDARDS[std][0].items():
+                if abs(d0 - d) < 0.01 and abs(p0 - p) < 0.001:
+                    self.v["standard"].set(std)
+                    self._on_standard()
+                    self.v["size"].set(name)
+                    self._on_size()
+                    return
+        self.v["diameter"].set(f"{d:g}")
+        self.v["pitch"].set(f"{p:g}")
+
+    def _num(self, key, label, optional=False):
+        s = self.v[key].get().strip().replace(",", ".")
+        if not s and optional:
+            return None
+        try:
+            x = float(s)
+        except ValueError:
+            raise ValueError(f"{label} must be a number") from None
+        if x < 0 or (x == 0 and key != "clearance"):
+            raise ValueError(f"{label} must be more than 0")
+        return x
+
+    def _bg(self, label, fn, done):
+        if self.busy:
+            return
+        self.busy = True
+        for b in (self.b_use, self.b_add):
+            b.state(["disabled"])
+        self.status.configure(text=label, foreground="")
+        box = []
+
+        def run():
+            try:
+                with sc_live.Client() as c:
+                    box.append((fn(c), None))
+            except Exception as e:  # shown to the user
+                box.append((None, e))
+
+        def poll():
+            if not box:
+                self.root.after(80, poll)
+                return
+            self.busy = False
+            for b in (self.b_use, self.b_add):
+                b.state(["!disabled"])
+            res, err = box[0]
+            if err:
+                self.status.configure(text=str(err), foreground="#b00020")
+            else:
+                done(res)
+
+        threading.Thread(target=run, daemon=True).start()
+        self.root.after(80, poll)
+
+    @staticmethod
+    def _describe(info):
+        kind = "Hole (internal thread)" if info["internal"] else "Shaft (external thread)"
+        length = info["end"] - info["start"]
+        return (f"{kind} on {info['body']}: fits {info['designation']} "
+                f"(Ø{info['major_diameter']:g} mm), {length:g} mm long.")
+
+    def use_face(self):
+        def fn(c):
+            face = sc_live.selected_face(c)
+            info = sc_live.probe_face(c, face)
+            info["face"] = face
+            return info
+
+        def done(info):
+            self.face = info["face"]
+            self.face_lbl.configure(text=self._describe(info), foreground="")
+            self._pick_size(info["major_diameter"], info["pitch"])
+            self.status.configure(text="")
+
+        self._bg("Reading the selection…", fn, done)
+
+    def add(self):
+        try:
+            d = self._num("diameter", "Diameter")
+            p = self._num("pitch", "Pitch")
+            clearance = self._num("clearance", "Clearance")
+            length = self._num("length", "Length", optional=True)
+        except ValueError as e:
+            self.status.configure(text=str(e), foreground="#b00020")
+            return
+        if clearance > p / 3:
+            self.status.configure(text=f"Clearance can be at most {p / 3:.2f} mm for this pitch.",
+                                  foreground="#b00020")
+            return
+
+        remembered = self.face
+
+        def fn(c):
+            # the face selected now, else the one from "Use selected face"
+            try:
+                face = sc_live.selected_face(c)
+            except RuntimeError:
+                if not remembered:
+                    raise
+                face = remembered
+            info = sc_live.probe_face(c, face)
+            res = sc_live.add_thread(c, face, d, p, clearance, info["internal"], length)
+            res["info"] = info
+            return res
+
+        def done(res):
+            self.face = None  # the thread replaced that face
+            self.face_lbl.configure(text=self._describe(res["info"]), foreground="")
+            self.status.configure(
+                text=f"Added “{res['name']}” (cut as {res['designation']}). "
+                     "Undo with Ctrl+Z in SolidCraft. Select another face to add more.",
+                foreground="#1b7f3b")
+
+        self._bg("Cutting the thread… (a few seconds)", fn, done)
+
+
 def run_gui():
     if sys.platform == "win32":
         try:  # crisp text on high-DPI screens
@@ -443,7 +623,49 @@ def run_gui():
         ttk.Style(root).theme_use("vista")
     except tk.TclError:
         pass
-    App(root)
+    root.title(f"SolidCraft Thread Generator {tg.__version__}")
+    icon = os.path.join(HERE, "icon.ico")
+    if os.path.isfile(icon):
+        try:
+            root.iconbitmap(icon)
+        except tk.TclError:
+            pass
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    tabs = ttk.Notebook(root)
+    tabs.grid(sticky="nsew")
+    face = FaceTab(root, tabs)
+    parts = App(root, tabs)
+    tabs.add(face, text="Thread a face in SolidCraft")
+    tabs.add(parts, text="Make parts (STL)")
+    # window size per tab: the face panel opens small, beside SolidCraft
+    root.update_idletasks()
+    sizes = {0: f"{face.winfo_reqwidth() + 40}x{face.winfo_reqheight() + 70}"}
+    root.geometry(sizes[0])
+
+    def on_tab(_):
+        cur = tabs.index("current")
+        root.attributes("-topmost", cur == 0 and face.v["ontop"].get())
+        root.minsize(*((300, 300) if cur == 0 else (900, 560)))
+        if sizes.get(cur):
+            root.geometry(sizes[cur])
+        elif cur == 1:
+            root.geometry("")  # natural size of the parts tab
+
+    ready = []  # sizes seen while the window first appears are not the user's
+
+    def remember(_):
+        if ready and root.state() == "normal":
+            sizes[tabs.index("current")] = f"{root.winfo_width()}x{root.winfo_height()}"
+
+    tabs.bind("<<NotebookTabChanged>>", on_tab)
+    root.bind("<Configure>", lambda e: e.widget is root and remember(e))
+
+    def settle():
+        root.geometry(sizes[0])
+        root.after(300, lambda: ready.append(True))
+
+    root.after(200, settle)
     root.mainloop()
 
 

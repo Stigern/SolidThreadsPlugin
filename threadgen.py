@@ -24,13 +24,13 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # SolidCraft plugin manifest (Preferences > Plugins). SolidCraft accepts exactly these four
 # fields: id (must match the folder name), name, version and description (<= 240 chars).
 PLUGIN_ID = "thread-generator"
 PLUGIN_NAME = "Thread Generator"
-PLUGIN_DESCRIPTION = "3D-printable bolts, nuts and threaded rods with pitch, clearance and multi-start options."
+PLUGIN_DESCRIPTION = "Cut threads with print clearance into a selected face, or make bolts, nuts and rods as STL."
 
 # --------------------------------------------------------------------------
 # Standard sizes
@@ -38,6 +38,7 @@ PLUGIN_DESCRIPTION = "3D-printable bolts, nuts and threaded rods with pitch, cle
 
 # name -> (major diameter mm, pitch mm)
 ISO_COARSE = {
+    "M1": (1.0, 0.25), "M1.2": (1.2, 0.25), "M1.4": (1.4, 0.3), "M1.6": (1.6, 0.35),
     "M2": (2.0, 0.4), "M2.5": (2.5, 0.45), "M3": (3.0, 0.5), "M4": (4.0, 0.7),
     "M5": (5.0, 0.8), "M6": (6.0, 1.0), "M8": (8.0, 1.25), "M10": (10.0, 1.5),
     "M12": (12.0, 1.75), "M14": (14.0, 2.0), "M16": (16.0, 2.0),

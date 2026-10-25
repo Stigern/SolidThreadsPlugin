@@ -22,6 +22,23 @@ the generator opens in its own window. When SolidCraft can run plugins
 ([#1221](https://github.com/tangency-labs/solidcraft/issues/1221)) it can move
 inside the app.
 
+## Thread a face in SolidCraft
+
+The first tab works on the design you have open in SolidCraft (0.22 or later):
+
+1. In SolidCraft, select the round face of a shaft, or the inside of a hole.
+2. Click **Use selected face**. The generator asks SolidCraft what fits: shaft or
+   hole, the size (a 10 mm shaft or an 8.5 mm hole both give M10) and the length.
+3. Pick the size (ISO metric M1–M48, fine pitches, UNC) and the **clearance**
+   (0, 0.1, 0.15, 0.2 … mm per side), and optionally a shorter length.
+4. Click **Add thread**. SolidCraft cuts a modeled thread into the body: a shaft
+   gets 2 × clearance smaller in diameter, a hole 2 × clearance larger, with the
+   same pitch. It's a normal feature in the timeline, named for example
+   "External M10x1.5 +0.2 clearance", and Ctrl+Z in SolidCraft undoes it.
+
+The window stays on top of SolidCraft so you can keep selecting faces.
+Printing both a bolt and a nut? Give both a clearance.
+
 SolidCraft is optional: without it you can still save STLs for your slicer.
 With it, *Preview* and *Open in SolidCraft* work. If SolidCraft is installed
 somewhere other than `C:\Program Files\SolidCraft`, click *Locate SolidCraft…*.
