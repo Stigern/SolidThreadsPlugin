@@ -5,7 +5,7 @@ select a shaft or a hole in SolidCraft, pick a size, tolerance and height, and
 the thread is cut into your model. It can also export a repaired 3MF for your
 slicer, and make bolts, nuts, threaded rods and thread cutters as STL.
 
-![The Thread Generator panel in dark mode beside SolidCraft, with an M10x2.5 thread cut into a bolt and a nut](docs/screenshot.png)
+![The Thread Generator panel in dark mode beside SolidCraft, with an M8x1 thread (tolerance O.15, height 85%) cut into a bolt and a nut](docs/screenshot.png)
 
 ## Install
 
