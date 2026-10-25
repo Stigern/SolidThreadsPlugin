@@ -151,28 +151,48 @@ def probe_face(c: Client, face: dict) -> dict:
     info = (res or {}).get("thread")
     if not info:
         raise RuntimeError("SolidCraft found no thread size for that face.")
+    info["face_diameter"] = face_diameter(c, face)
     return info
+
+
+def face_diameter(c: Client, face: dict) -> float | None:
+    """The diameter of the selected cylindrical face, or None if it can't be read."""
+    if face.get("body") is None or face.get("index") is None:
+        return None
+    try:
+        faces = c.execute("model.faces", {"body": face["body"]})["faces"]
+    except (RuntimeError, KeyError, TypeError):
+        return None
+    for f in faces:
+        if f.get("index") == face["index"] and f.get("cylinder"):
+            return 2 * f["cylinder"]["radius"]
+    return None
 
 
 def designation(diameter: float, pitch: float) -> str:
     return f"M{round(diameter, 3):g}x{round(pitch, 4):g}"
 
 
-def add_thread(c: Client, face: dict, diameter: float, pitch: float, clearance: float,
-               internal: bool, length: float | None = None, modeled: bool = True) -> dict:
-    """Cut a thread into the face, looser by `clearance` mm per side.
+def tolerance_class(offset: float) -> str:
+    """CustomThreads' name for a diameter offset: 0.2 -> "O.2"."""
+    return f"O.{round(offset * 10, 2):g}" if offset < 1 else f"O+{offset:g}"
 
-    External threads get 2 x clearance smaller in diameter, internal ones 2 x
-    clearance larger; the pitch stays. One undoable step in SolidCraft (plus a
-    rename of the new feature)."""
-    d = diameter + (2 * clearance if internal else -2 * clearance)
+
+def add_thread(c: Client, face: dict, diameter: float, pitch: float, offset: float,
+               internal: bool, length: float | None = None, modeled: bool = True) -> dict:
+    """Cut a thread into the face, looser by `offset` mm on the diameter.
+
+    As in CustomThreads' tolerance classes (O.0, O.1, O.2, O.4, O.8): an external
+    thread's major, pitch and minor diameters get `offset` smaller, an internal
+    thread's `offset` larger; the pitch stays. One undoable step in SolidCraft
+    (plus a rename of the new feature)."""
+    d = diameter + (offset if internal else -offset)
     params = {"face": face["point"], "designation": designation(d, pitch), "modeled": modeled}
     if length:
         params["length"] = f"{length:g} mm"
     res = c.execute("solid.thread", params)
     nominal = f"M{diameter:g}x{pitch:g}"
-    base = f"{'Internal' if internal else 'External'} {nominal}" + \
-        (f" +{clearance:g} clearance" if clearance else "")
+    base = f"{'Internal' if internal else 'External'} {nominal} {tolerance_class(offset)}"
     label = base
     feature = (res or {}).get("feature")
     if feature is not None:

@@ -24,7 +24,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 # SolidCraft plugin manifest (Preferences > Plugins). SolidCraft accepts exactly these four
 # fields: id (must match the folder name), name, version and description (<= 240 chars).
@@ -70,7 +70,14 @@ PRINT_FRIENDLY = {
     "Jar 80x5": (80.0, 5.0), "Jar 100x6": (100.0, 6.0),
 }
 
+# Coarse 60° metric threads for FDM printing, after CustomThreads
+# (github.com/BalzGuenat/CustomThreads, MIT): ISO profile, 3.5 or 5 mm pitch at
+# any diameter, so the thread is deep enough to survive 0.2-0.3 mm layers.
+PRINTED_METRIC = {f"M{d}x{p:g}": (float(d), p) for d in range(8, 51) for p in (3.5, 5.0)}
+PRINTED = "3D-printed metric (3.5/5 mm pitch)"
+
 STANDARDS = {
+    PRINTED: (PRINTED_METRIC, "iso"),
     "ISO metric coarse": (ISO_COARSE, "iso"),
     "ISO metric fine": (ISO_FINE, "iso"),
     "UNC (inch)": (UNC, "iso"),

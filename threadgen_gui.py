@@ -424,8 +424,9 @@ class FaceTab(ttk.Frame):
 
     # SolidCraft's Thread cuts 60° threads from an "M<diameter>x<pitch>" designation,
     # so ISO metric and UNC sizes work; trapezoidal ones don't.
-    STANDARDS = ("ISO metric coarse", "ISO metric fine", "UNC (inch)")
-    CLEARANCES = ("0", "0.1", "0.15", "0.2", "0.25", "0.3", "0.4")
+    STANDARDS = (tg.PRINTED, "ISO metric coarse", "ISO metric fine", "UNC (inch)")
+    # CustomThreads' tolerance classes: O.2 = 0.2 mm off each diameter of this part
+    TOLERANCES = ("O.0  tight", "O.1", "O.2", "O.4", "O.8  loose")
 
     def __init__(self, root: tk.Tk, parent):
         super().__init__(parent, padding=12)
@@ -446,21 +447,25 @@ class FaceTab(ttk.Frame):
 
         ttk.Label(self, text="2.  Choose the thread.").grid(row=3, column=0, columnspan=3, sticky="w")
         r = 4
-        std = ttk.Combobox(self, textvariable=var("standard", "ISO metric coarse"),
-                           values=self.STANDARDS, state="readonly", width=20)
+        std = ttk.Combobox(self, textvariable=var("standard", tg.PRINTED),
+                           values=self.STANDARDS, state="readonly", width=30)
         std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
         self._row(r, "Standard", std); r += 1
-        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10"), state="readonly", width=20)
+        Tip(std, "3D-printed metric: ISO 60° profile with a coarse 3.5 or 5 mm pitch,\n"
+                 "deep enough to print well at 0.2-0.3 mm layers (as CustomThreads).\n"
+                 "Standard ISO sizes fit metal screws, but their fine pitch prints poorly.")
+        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10x3.5"), state="readonly", width=20)
         self.size_cb.bind("<<ComboboxSelected>>", lambda e: self._on_size())
         self._row(r, "Size", self.size_cb); r += 1
         self._row(r, "Diameter", ttk.Entry(self, textvariable=var("diameter", "10"), width=10), "mm"); r += 1
-        self._row(r, "Pitch", ttk.Entry(self, textvariable=var("pitch", "1.5"), width=10), "mm"); r += 1
-        cl = ttk.Combobox(self, textvariable=var("clearance", "0.2"), values=self.CLEARANCES, width=8)
-        self._row(r, "Clearance", cl, "mm per side"); r += 1
-        Tip(cl, "How much looser than nominal, on each side (radius).\n"
-                "Bolts get 2x this smaller in diameter, holes 2x larger.\n"
-                "Printed bolt + printed nut: give both a clearance.\n"
-                "FDM: 0.1-0.2 per part. Resin: 0.05-0.1.")
+        self._row(r, "Pitch", ttk.Entry(self, textvariable=var("pitch", "3.5"), width=10), "mm"); r += 1
+        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
+        self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter"); r += 1
+        Tip(cl, "How much looser than nominal this part is, on its diameter\n"
+                "(CustomThreads' classes): a bolt gets this much smaller,\n"
+                "a hole this much larger. Printed bolt + printed nut: both get it.\n"
+                "Start with O.2 on both; O.4 if tight, O.1 if loose.\n"
+                "Any number works too, e.g. 0.3.")
         self._row(r, "Length", ttk.Entry(self, textvariable=var("length", ""), width=10),
                   "mm (blank = whole face)"); r += 1
 
@@ -492,9 +497,21 @@ class FaceTab(ttk.Frame):
         self.v["diameter"].set(f"{d:g}")
         self.v["pitch"].set(f"{p:.4g}")
 
-    def _pick_size(self, d, p):
-        """Select the standard size matching diameter d and pitch p, if there is one."""
-        for std in self.STANDARDS:
+    def _pick_size(self, d, p, face_d=None, internal=False):
+        """Select the size for the face SolidCraft measured.
+
+        With the 3D-printed standard: a shaft's own diameter, or for a hole the
+        diameter whose tap drill (diameter - pitch) the hole is. Otherwise the
+        standard size matching SolidCraft's fit (d, p), if there is one."""
+        if self.v["standard"].get() == tg.PRINTED and face_d:
+            pitch = float(self.v["pitch"].get() or 3.5)
+            pitch = pitch if pitch in (3.5, 5.0) else 3.5
+            nominal = round(face_d + pitch) if internal else round(face_d)
+            if 8 <= nominal <= 50:
+                self.v["size"].set(f"M{nominal}x{pitch:g}")
+                self._on_size()
+                return
+        for std in self.STANDARDS[1:]:
             for name, (d0, p0) in tg.STANDARDS[std][0].items():
                 if abs(d0 - d) < 0.01 and abs(p0 - p) < 0.001:
                     self.v["standard"].set(std)
@@ -513,8 +530,21 @@ class FaceTab(ttk.Frame):
             x = float(s)
         except ValueError:
             raise ValueError(f"{label} must be a number") from None
-        if x < 0 or (x == 0 and key != "clearance"):
+        if x <= 0:
             raise ValueError(f"{label} must be more than 0")
+        return x
+
+    def _tolerance(self):
+        """The diameter offset: "O.2" (or "O.2  tight") -> 0.2; a plain number is mm."""
+        s = (self.v["tolerance"].get().split() or [""])[0].replace(",", ".")
+        if s[:1] in ("O", "o"):
+            s = "0" + s[1:]
+        try:
+            x = float(s)
+        except ValueError:
+            raise ValueError("Tolerance must be a class like O.2 or a number in mm") from None
+        if x < 0:
+            raise ValueError("Tolerance can't be negative")
         return x
 
     def _bg(self, label, fn, done):
@@ -551,10 +581,26 @@ class FaceTab(ttk.Frame):
 
     @staticmethod
     def _describe(info):
-        kind = "Hole (internal thread)" if info["internal"] else "Shaft (external thread)"
+        kind = "Hole" if info["internal"] else "Shaft"
         length = info["end"] - info["start"]
-        return (f"{kind} on {info['body']}: fits {info['designation']} "
-                f"(Ø{info['major_diameter']:g} mm), {length:g} mm long.")
+        size = f"Ø{info['face_diameter']:.4g} mm, " if info.get("face_diameter") else ""
+        return (f"{kind} on {info['body']}: {size}{length:g} mm long "
+                f"(ISO would be {info['designation']}).")
+
+    def _hint(self, info):
+        """For a hole: the drill the chosen thread wants (diameter - pitch)."""
+        if not info.get("internal") or not info.get("face_diameter"):
+            return ""
+        try:
+            want = float(self.v["diameter"].get()) - float(self.v["pitch"].get())
+        except ValueError:
+            return ""
+        have = info["face_diameter"]
+        if abs(have - want) < 0.3:
+            return ""
+        return (f" Tip: for {self.v['size'].get() or 'this thread'} the hole should be "
+                f"about Ø{want:g} mm; it is Ø{have:.4g} mm"
+                + (", so the thread will be shallow." if have > want else "."))
 
     def use_face(self):
         def fn(c):
@@ -565,8 +611,9 @@ class FaceTab(ttk.Frame):
 
         def done(info):
             self.face = info["face"]
-            self.face_lbl.configure(text=self._describe(info), foreground="")
-            self._pick_size(info["major_diameter"], info["pitch"])
+            self._pick_size(info["major_diameter"], info["pitch"],
+                            info.get("face_diameter"), info["internal"])
+            self.face_lbl.configure(text=self._describe(info) + self._hint(info), foreground="")
             self.status.configure(text="")
 
         self._bg("Reading the selection…", fn, done)
@@ -575,13 +622,13 @@ class FaceTab(ttk.Frame):
         try:
             d = self._num("diameter", "Diameter")
             p = self._num("pitch", "Pitch")
-            clearance = self._num("clearance", "Clearance")
+            offset = self._tolerance()
             length = self._num("length", "Length", optional=True)
         except ValueError as e:
             self.status.configure(text=str(e), foreground="#b00020")
             return
-        if clearance > p / 3:
-            self.status.configure(text=f"Clearance can be at most {p / 3:.2f} mm for this pitch.",
+        if offset > p / 2:
+            self.status.configure(text=f"Tolerance can be at most {p / 2:g} mm for this pitch.",
                                   foreground="#b00020")
             return
 
@@ -596,7 +643,7 @@ class FaceTab(ttk.Frame):
                     raise
                 face = remembered
             info = sc_live.probe_face(c, face)
-            res = sc_live.add_thread(c, face, d, p, clearance, info["internal"], length)
+            res = sc_live.add_thread(c, face, d, p, offset, info["internal"], length)
             res["info"] = info
             return res
 

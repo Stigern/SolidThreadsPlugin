@@ -27,17 +27,34 @@ inside the app.
 The first tab works on the design you have open in SolidCraft (0.22 or later):
 
 1. In SolidCraft, select the round face of a shaft, or the inside of a hole.
-2. Click **Use selected face**. The generator asks SolidCraft what fits: shaft or
-   hole, the size (a 10 mm shaft or an 8.5 mm hole both give M10) and the length.
-3. Pick the size (ISO metric M1–M48, fine pitches, UNC) and the **clearance**
-   (0, 0.1, 0.15, 0.2 … mm per side), and optionally a shorter length.
-4. Click **Add thread**. SolidCraft cuts a modeled thread into the body: a shaft
-   gets 2 × clearance smaller in diameter, a hole 2 × clearance larger, with the
-   same pitch. It's a normal feature in the timeline, named for example
-   "External M10x1.5 +0.2 clearance", and Ctrl+Z in SolidCraft undoes it.
+2. Click **Use selected face**. The generator reads whether it's a shaft or a
+   hole, its diameter and length, and picks a size.
+3. Pick the size and the **tolerance**, and optionally a shorter length.
+4. Click **Add thread**. SolidCraft cuts a modeled thread into the body. It's a
+   normal feature in the timeline, named for example "External M10x3.5 O.2",
+   and Ctrl+Z in SolidCraft undoes it.
+
+**Sizes.** The default standard, *3D-printed metric*, follows
+[CustomThreads](https://github.com/BalzGuenat/CustomThreads) (MIT): the ISO 60°
+profile with a coarse 3.5 or 5 mm pitch for M8–M50. Standard ISO threads
+(M10 has a 1.5 mm pitch) are only about 0.9 mm deep, a few layers, and print
+poorly; a 3.5 mm pitch is about 2 mm deep. ISO metric, fine and UNC sizes are
+still there for parts that must fit metal screws.
+
+Model the parts at the nominal size: a shaft at the thread diameter (10 mm for
+M10x3.5), and a hole at diameter − pitch (6.5 mm for M10x3.5). The generator
+picks the size from that, and warns when a hole doesn't match the thread.
+
+**Tolerance** uses CustomThreads' classes: O.2 makes this part 0.2 mm looser on
+each diameter (a shaft 0.2 mm smaller, a hole 0.2 mm larger). Printing both a
+bolt and a nut? Give both a class: start with O.2 on both, go to O.4 if it's
+tight, O.1 if it's loose. Any number in mm works too.
+
+Threads are cut into the whole body, and SolidCraft turns every round face of
+that body into small flat facets. Keep separate parts as separate bodies
+(*New Body* when you extrude) so only the threaded part is affected.
 
 The window stays on top of SolidCraft so you can keep selecting faces.
-Printing both a bolt and a nut? Give both a clearance.
 
 SolidCraft is optional: without it you can still save STLs for your slicer.
 With it, *Preview* and *Open in SolidCraft* work. If SolidCraft is installed
