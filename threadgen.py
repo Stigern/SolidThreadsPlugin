@@ -24,7 +24,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 # SolidCraft plugin manifest (Preferences > Plugins). SolidCraft accepts exactly these four
 # fields: id (must match the folder name), name, version and description (<= 240 chars).

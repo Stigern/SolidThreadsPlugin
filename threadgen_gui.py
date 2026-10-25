@@ -546,8 +546,8 @@ class FaceTab(ttk.Frame):
     # so ISO metric and UNC sizes work; trapezoidal ones don't.
     STANDARDS = (tg.PRINTED, "ISO metric coarse", "ISO metric fine", "UNC (inch)")
     # CustomThreads' tolerance classes: O.2 = 0.2 mm off each diameter of this part
-    TOLERANCES = ("O.0  tight", "O.1", "O.2", "O.4", "O.8  loose")
-    HEIGHTS = ("100%  full", "90%", "80%", "70%  low")
+    TOLERANCES = ("O.0  tight", "O.1", "O.15", "O.2", "O.4", "O.8  loose")
+    HEIGHTS = ("100%  full", "95%", "90%", "85%", "80%", "75%", "70%  low")
 
     def __init__(self, root: tk.Tk, parent):
         super().__init__(parent, padding=12)
@@ -593,7 +593,7 @@ class FaceTab(ttk.Frame):
         Tip(cl, "How much looser than nominal this part is, on its diameter\n"
                 "(CustomThreads' classes): a bolt gets this much smaller,\n"
                 "a hole this much larger. Printed bolt + printed nut: both get it.\n"
-                "Start with O.2 on both; O.4 if tight, O.1 if loose.\n"
+                "Start with O.2 on both; O.4 if tight, O.15 or O.1 if loose.\n"
                 "Any number works too, e.g. 0.3.")
         ht = ttk.Combobox(self, textvariable=var("height", "100%  full"), values=self.HEIGHTS, width=10)
         self._row(r, "Height", ht, "how far the teeth stick out", key="height"); r += 1

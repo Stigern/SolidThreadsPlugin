@@ -54,13 +54,15 @@ Model the parts at the nominal size: a shaft at the thread diameter (10 mm for
 M10x2.5), and a hole at diameter − pitch (7.5 mm for M10x2.5). The generator
 picks the size from that, and warns when a hole doesn't match the thread.
 
-**Tolerance** uses CustomThreads' classes: O.2 makes this part 0.2 mm looser on
-each diameter (a shaft 0.2 mm smaller, a hole 0.2 mm larger). Printing both a
-bolt and a nut? Give both a class: start with O.2 on both, go to O.4 if it's
-tight, O.1 if it's loose. Any number in mm works too.
+**Tolerance** uses CustomThreads' classes (O.0, O.1, O.15, O.2, O.4, O.8):
+O.2 makes this part 0.2 mm looser on each diameter (a shaft 0.2 mm smaller, a
+hole 0.2 mm larger). Printing both a bolt and a nut? Give both a class: start
+with O.2 on both, go to O.4 if it's tight, O.15 or O.1 if it's loose. Any
+number in mm works too.
 
-**Height** sets how far the teeth stick out: 100% is the full ISO height, 90%,
-80% and 70% give lower teeth with flat tops. The shaft is first made thinner
+**Height** sets how far the teeth stick out: 100% is the full ISO height;
+95%, 90%, 85%, 80%, 75% and 70% (or any value from 50% you type) give lower
+teeth with flat tops. The shaft is first made thinner
 (or the hole wider) and then threaded, so only the tips of the teeth go; the
 flanks stay where they are, and a bolt and nut with the same height still fit.
 They grip over less depth: for M10x2.5 with O.2 the grip is 1.16 mm at 100%,

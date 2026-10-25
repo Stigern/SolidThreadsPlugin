@@ -174,8 +174,11 @@ def designation(diameter: float, pitch: float) -> str:
 
 
 def tolerance_class(offset: float) -> str:
-    """CustomThreads' name for a diameter offset: 0.2 -> "O.2"."""
-    return f"O.{round(offset * 10, 2):g}" if offset < 1 else f"O+{offset:g}"
+    """CustomThreads' name for a diameter offset: 0.2 -> "O.2", 0.15 -> "O.15"."""
+    s = f"{round(offset, 3):g}"
+    if s == "0":
+        return "O.0"
+    return "O." + s[2:] if s.startswith("0.") else f"O+{s}"
 
 
 # The ISO basic thread height (5H/8, radial) as a fraction of the pitch. SolidCraft
