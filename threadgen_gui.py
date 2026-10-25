@@ -9,6 +9,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+import repair
 import sc_live
 import theme
 import threadgen as tg
@@ -612,8 +613,23 @@ class FaceTab(ttk.Frame):
 
         self.b_add = ttk.Button(self, text="Add thread", command=self.add, style="Accent.TButton")
         self.b_add.grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 4)); r += 1
-        self.status = ttk.Label(self, text="", wraplength=360, justify="left")
+        self.status = ttk.Label(self, text="", wraplength=420, justify="left")
         self.status.grid(row=r, column=0, columnspan=3, sticky="w"); r += 1
+
+        ttk.Separator(self).grid(row=r, column=0, columnspan=3, sticky="ew", pady=(12, 8)); r += 1
+        ttk.Label(self, text="3.  Export for printing, repaired by Windows.").grid(
+            row=r, column=0, columnspan=3, sticky="w"); r += 1
+        exp = ttk.Frame(self)
+        exp.grid(row=r, column=0, columnspan=3, sticky="w", pady=(6, 0)); r += 1
+        self.b_export = ttk.Button(exp, text="Export repaired 3MF", command=self.export)
+        self.b_export.grid(row=0, column=0, sticky="w")
+        Tip(self.b_export, "Saves the selected body (or every body, if nothing is selected)\n"
+                           "as 3MF and runs Windows' model repair on it, the same repair\n"
+                           "3D Builder and the slicers' \"Fix model\" use: holes closed,\n"
+                           "flipped and crossing triangles fixed. Your design in SolidCraft\n"
+                           "is not changed. Saved to the output folder of the STL tab.")
+        ttk.Checkbutton(exp, text="Open in slicer", variable=var("open_slicer", True, tk.BooleanVar)
+                        ).grid(row=0, column=1, sticky="w", padx=(12, 0))
         ttk.Checkbutton(self, text="Keep this window on top", variable=var("ontop", True, tk.BooleanVar),
                         command=lambda: root.attributes("-topmost", self.v["ontop"].get())
                         ).grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 0))
@@ -737,7 +753,7 @@ class FaceTab(ttk.Frame):
         if self.busy:
             return
         self.busy = True
-        for b in (self.b_use, self.b_add):
+        for b in (self.b_use, self.b_add, self.b_export):
             b.state(["disabled"])
         self.status.configure(text=label, foreground="")
         box = []
@@ -754,7 +770,7 @@ class FaceTab(ttk.Frame):
                 self.root.after(80, poll)
                 return
             self.busy = False
-            for b in (self.b_use, self.b_add):
+            for b in (self.b_use, self.b_add, self.b_export):
                 b.state(["!disabled"])
             res, err = box[0]
             if err:
@@ -849,6 +865,55 @@ class FaceTab(ttk.Frame):
                 foreground=PAL["ok"])
 
         self._bg("Cutting the thread… (a few seconds)", fn, done)
+
+    def export(self):
+        out_dir = tg.load_settings().get("out_dir") or DEFAULT_OUT
+        open_slicer = self.v["open_slicer"].get()
+
+        def fn(c):
+            sel = (c.call("ui.selection") or {}).get("selection") or []
+            bodies = sorted({s["body"] for s in sel if s.get("body")})
+            doc = c.call("document.inspect") or {}
+            name = str(doc.get("name") or doc.get("title") or "design")
+            stem = "".join(ch if ch.isalnum() or ch in "-_ ." else "_" for ch in
+                           (name + ("_" + "_".join(bodies) if bodies else ""))).strip() or "design"
+            os.makedirs(out_dir, exist_ok=True)
+            raw = os.path.join(tempfile.gettempdir(), "threadgen_export_raw.3mf")
+            params = {"path": raw, "format": "3mf"}
+            if bodies:
+                params["bodies"] = bodies
+            c.execute("file.save_mesh", params)
+            dst = os.path.join(out_dir, f"{stem}_repaired.3mf")
+            k = 2
+            while os.path.exists(dst):
+                dst = os.path.join(out_dir, f"{stem}_repaired ({k}).3mf")
+                k += 1
+            res = repair.repair_file(raw, dst)
+            res["bodies"] = bodies
+            return res
+
+        def done(res):
+            b, a = res["before"], res["after"]
+            what = ", ".join(res["bodies"]) if res["bodies"] else "all bodies"
+            if b["problems"]:
+                fixed = (f"{b['problems']} problem(s) found "
+                         f"({b['open_edges']} open, {b['flipped_edges']} flipped, "
+                         f"{b['non_manifold_edges']} non-manifold edges), {a['problems']} left")
+            else:
+                fixed = "no holes or flipped faces found"
+            cleaned = res["windows"]["triangles_before"] - res["windows"]["triangles_after"]
+            if cleaned:
+                fixed += f"; Windows cleaned up {cleaned:,} triangles"
+            self.status.configure(
+                text=f"Exported {what} to {os.path.basename(res['path'])}: {fixed}.",
+                foreground=PAL["err"] if a["problems"] else PAL["ok"])
+            if open_slicer and sys.platform == "win32":
+                try:
+                    os.startfile(res["path"])  # the app 3MF files open with, usually the slicer
+                except OSError as e:
+                    self.status.configure(text=self.status.cget("text") + f" (couldn't open it: {e})")
+
+        self._bg("Exporting and repairing… (can take a little while)", fn, done)
 
 
 def run_gui():

@@ -69,6 +69,15 @@ nominal diameter. Hover over a setting (or click into it) to see its part of
 the drawing highlighted. The window follows SolidCraft's light or dark theme
 (or Windows' when SolidCraft isn't running).
 
+**Export for printing.** SolidCraft's modeled threads are made of many small
+facets, and slicers sometimes find small errors in them. *Export repaired 3MF*
+saves the selected body (or all bodies, when nothing is selected) as 3MF and
+runs Windows' own model repair on it, the same repair 3D Builder and the
+slicers' "Fix model" use: holes closed, flipped and crossing triangles fixed.
+The result goes to `Documents\SolidCraft Threads` and, with *Open in slicer*,
+opens in the program 3MF files open with. Your design in SolidCraft is not
+changed. Needs Windows 10 or 11 (it runs `winrepair.ps1` in Windows PowerShell).
+
 Threads are cut into the whole body, and SolidCraft turns every round face of
 that body into small flat facets. Keep separate parts as separate bodies
 (*New Body* when you extrude) so only the threaded part is affected.
