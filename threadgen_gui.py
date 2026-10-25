@@ -92,6 +92,9 @@ class App(ttk.Frame):
         self.status.grid(row=0, column=0, sticky="w")
         self.b_locate = ttk.Button(bar, text="Locate SolidCraft…", command=self.locate)
         self.b_locate.grid(row=0, column=1, padx=4)
+        self.b_install = ttk.Button(bar, text="Install as SolidCraft plugin", command=self.install)
+        if self._can_install():
+            self.b_install.grid(row=0, column=5, padx=(12, 0))
         self.b_prev = ttk.Button(bar, text="Preview", command=self.preview)
         self.b_prev.grid(row=0, column=2, padx=4)
         self.b_save = ttk.Button(bar, text="Save STL", command=self.save)
@@ -213,6 +216,29 @@ class App(ttk.Frame):
             self.b_locate.grid_remove()
         else:
             self.b_locate.grid()
+
+    def _can_install(self):
+        """Offered by the .exe when it is not already running from the plugins folder."""
+        folder = tg.plugin_folder()
+        if not getattr(sys, "frozen", False) or not folder:
+            return False
+        here = os.path.dirname(os.path.abspath(sys.executable))
+        return os.path.normcase(here) != os.path.normcase(os.path.abspath(folder))
+
+    def install(self):
+        files = [sys.executable] + [os.path.join(HERE, f) for f in ("README.md", "LICENSE")
+                                    if os.path.isfile(os.path.join(HERE, f))]
+        try:
+            dest = tg.install_plugin(files)
+        except (OSError, RuntimeError) as e:
+            messagebox.showerror("Thread Generator", f"Could not install: {e}")
+            return
+        self.b_install.grid_remove()
+        messagebox.showinfo("Thread Generator",
+                            f"Installed in {dest}.
+
+It now shows in SolidCraft under "
+                            "Preferences > Plugins. You can start it from that folder.")
 
     def locate(self):
         d = filedialog.askdirectory(title="Folder that contains solidcraft-cli.exe")

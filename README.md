@@ -5,18 +5,30 @@ and thread cutters. Output is a watertight STL, optionally opened in SolidCraft.
 
 ## Install
 
-1. Download `ThreadGenerator-<version>.zip` and unzip it anywhere.
-2. Double-click **ThreadGenerator.exe**. No Python or installer needed.
-   Windows may show "Windows protected your PC" because the program isn't
-   code-signed: click *More info → Run anyway*.
-3. Files are saved to `Documents\SolidCraft Threads` (change it in the window).
+1. Download `thread-generator-<version>.zip`.
+2. In SolidCraft open **Preferences → Plugins → Show in folder** and unzip the
+   zip there, so you get `plugins\thread-generator\plugin.json`
+   (on Windows: `%LOCALAPPDATA%\SolidCraft\plugins`).
+3. Reopen Preferences → Plugins: **Thread Generator** is listed.
+4. Start **ThreadGenerator.exe** from that folder. No Python needed. Windows
+   may show "Windows protected your PC" because the program isn't code-signed:
+   click *More info → Run anyway*.
+
+Or unzip it anywhere, run the exe and click *Install as SolidCraft plugin*.
+Files are saved to `Documents\SolidCraft Threads` (change it in the window).
+
+SolidCraft's plugin system currently lists plugins but doesn't run them yet, so
+the generator opens in its own window. When SolidCraft can run plugins
+([#1221](https://github.com/tangency-labs/solidcraft/issues/1221)) it can move
+inside the app.
 
 SolidCraft is optional: without it you can still save STLs for your slicer.
 With it, *Preview* and *Open in SolidCraft* work. If SolidCraft is installed
 somewhere other than `C:\Program Files\SolidCraft`, click *Locate SolidCraft…*.
 
 From source: run `python "Thread Generator.pyw"` (Python 3.10+, standard library
-only). `build.bat` rebuilds the .exe and the release zip (needs PyInstaller).
+only). `build.bat` rebuilds the .exe and the release zip (needs PyInstaller);
+`build.bat --install` also installs it in your SolidCraft plugins folder.
 
 ## Options
 

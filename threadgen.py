@@ -24,7 +24,13 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
+
+# SolidCraft plugin manifest (Preferences > Plugins). SolidCraft accepts exactly these four
+# fields: id (must match the folder name), name, version and description (<= 240 chars).
+PLUGIN_ID = "thread-generator"
+PLUGIN_NAME = "Thread Generator"
+PLUGIN_DESCRIPTION = "3D-printable bolts, nuts and threaded rods with pitch, clearance and multi-start options."
 
 # --------------------------------------------------------------------------
 # Standard sizes
@@ -576,6 +582,42 @@ def documents_dir() -> str:
             pass
     docs = os.path.join(os.path.expanduser("~"), "Documents")
     return docs if os.path.isdir(docs) else os.path.expanduser("~")
+
+
+def plugin_manifest() -> dict:
+    return {"id": PLUGIN_ID, "name": PLUGIN_NAME, "version": __version__,
+            "description": PLUGIN_DESCRIPTION}
+
+
+def solidcraft_plugins_dir() -> str | None:
+    """SolidCraft's per-user plugins folder (Preferences > Plugins)."""
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA")
+        return os.path.join(base, "SolidCraft", "plugins") if base else None
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/SolidCraft/plugins")
+    base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return os.path.join(base, "solidcraft", "plugins")
+
+
+def plugin_folder() -> str | None:
+    d = solidcraft_plugins_dir()
+    return os.path.join(d, PLUGIN_ID) if d else None
+
+
+def install_plugin(files: list[str]) -> str:
+    """Copy files into SolidCraft's plugins folder with a plugin.json. Returns the folder."""
+    dest = plugin_folder()
+    if not dest:
+        raise RuntimeError("SolidCraft's plugins folder could not be found")
+    os.makedirs(dest, exist_ok=True)
+    for f in files:
+        target = os.path.join(dest, os.path.basename(f))
+        if os.path.abspath(f) != os.path.abspath(target):
+            shutil.copy2(f, target)
+    with open(os.path.join(dest, "plugin.json"), "w", encoding="utf-8") as fh:
+        json.dump(plugin_manifest(), fh, indent=2)
+    return dest
 
 
 def find_solidcraft() -> dict[str, str | None]:
