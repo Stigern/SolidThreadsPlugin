@@ -1,11 +1,16 @@
 # SolidCraft Thread Generator
 
-Makes 3D-printable threaded parts: bolts, threaded rods, nuts, bolt + nut pairs
-and thread cutters. Output is a watertight STL, optionally opened in SolidCraft.
+3D-printable threads for [SolidCraft](https://github.com/tangency-labs/solidcraft):
+select a shaft or a hole in SolidCraft, pick a size, tolerance and height, and
+the thread is cut into your model. It can also export a repaired 3MF for your
+slicer, and make bolts, nuts, threaded rods and thread cutters as STL.
+
+![The Thread Generator panel in dark mode beside SolidCraft, with an M10x2.5 thread cut into a bolt and a nut](docs/screenshot.png)
 
 ## Install
 
-1. Download `thread-generator-<version>.zip`.
+1. Download `thread-generator-<version>.zip` from
+   [Releases](https://github.com/Stigern/SolidThreadsPlugin/releases).
 2. In SolidCraft open **Preferences → Plugins → Show in folder** and unzip the
    zip there, so you get `plugins\thread-generator\plugin.json`
    (on Windows: `%LOCALAPPDATA%\SolidCraft\plugins`).
