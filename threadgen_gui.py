@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -466,7 +467,7 @@ class ThreadDiagram(tk.Canvas):
         r_lo, r_hi = R - o / 2 - h0 - 0.45 * h0, R + o / 2 + 0.45 * h0
         X = lambda z: x0 + (z - z0) / (z1 - z0) * (x1 - x0)
         Y = lambda r: y0 + (r_hi - r) / (r_hi - r_lo) * (y1 - y0)
-        on = lambda k: key == k
+        on = lambda k: key == k or (key == "size" and k in ("diameter", "pitch"))
         col = lambda k: PAL["accent"] if on(k) else PAL["dim"]
 
         # the gap is what shows between the two parts
@@ -573,29 +574,24 @@ class FaceTab(ttk.Frame):
         std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
         self._row(r, "Standard", std); r += 1
         std.grid_configure(columnspan=2)  # wide: keep the unit column close to the fields
-        Tip(std, "3D-printed metric: ISO 60° profile with a coarse 2, 2.5, 3.5 or 5 mm pitch,\n"
-                 "deep enough to print well at 0.2-0.3 mm layers (after CustomThreads).\n"
-                 "The pitch follows the size (2 below M6, 2.5 to M16, 3.5 to M30, then 5)\n"
-                 "until you pick one. 2 mm is experimental: M4-M5 get a thin core.\n"
-                 "Standard ISO sizes fit metal screws, but their fine pitch prints poorly.")
-        self.pitch_auto = True  # until the user picks a size, the pitch follows the diameter
-        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10x2.5"), state="readonly", width=20)
-        self.size_cb.bind("<<ComboboxSelected>>", lambda e: (setattr(self, "pitch_auto", False),
-                                                             self._on_size()))
-        self._row(r, "Size", self.size_cb, key="diameter"); r += 1
-        self._row(r, "Diameter", ttk.Entry(self, textvariable=var("diameter", "10"), width=10), "mm",
-                  key="diameter"); r += 1
-        pitch = ttk.Entry(self, textvariable=var("pitch", "2.5"), width=10)
-        pitch.bind("<Key>", lambda e: setattr(self, "pitch_auto", False))
-        self._row(r, "Pitch", pitch, "mm", key="pitch"); r += 1
-        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
+        Tip(std, "3D-printed metric: ISO 60° profile with a 1, 2, 2.5, 3.5 or 5 mm pitch\n"
+                 "on every size (after CustomThreads). The coarse ones print well even\n"
+                 "at 0.2-0.3 mm layers; 1 mm needs a printer that holds fine detail.\n"
+                 "Standard ISO sizes fit metal screws.")
+        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M8x1"), width=20)
+        self._row(r, "Size", self.size_cb, "diameter x pitch, mm", key="size"); r += 1
+        Tip(self.size_cb, "M8x1: 8 mm diameter, 1 mm from one thread crest to the next.\n"
+                          "A larger pitch gives deeper, coarser teeth.\n"
+                          "Pick one, or type your own, e.g. M9x1.5.\n"
+                          "When you use a new face, the pitch you picked is kept.")
+        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.15"), values=self.TOLERANCES, width=10)
         self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter", key="tolerance"); r += 1
         Tip(cl, "How much looser than nominal this part is, on its diameter\n"
                 "(CustomThreads' classes): a bolt gets this much smaller,\n"
                 "a hole this much larger. Printed bolt + printed nut: both get it.\n"
                 "Start with O.2 on both; O.4 if tight, O.15 or O.1 if loose.\n"
                 "Any number works too, e.g. 0.3.")
-        ht = ttk.Combobox(self, textvariable=var("height", "100%  full"), values=self.HEIGHTS, width=10)
+        ht = ttk.Combobox(self, textvariable=var("height", "85%"), values=self.HEIGHTS, width=10)
         self._row(r, "Height", ht, "how far the teeth stick out", key="height"); r += 1
         Tip(ht, "Lower teeth with flat tops: a shaft is made thinner and a hole wider\n"
                 "before the thread is cut, so the teeth stick out less. The flanks\n"
@@ -608,7 +604,7 @@ class FaceTab(ttk.Frame):
 
         self.diagram = ThreadDiagram(self)
         self.diagram.grid(row=r, column=0, columnspan=3, sticky="w", pady=(10, 0)); r += 1
-        for k in ("diameter", "pitch", "tolerance", "height"):
+        for k in ("size", "tolerance", "height"):
             self.v[k].trace_add("write", lambda *a: self._redraw())
 
         self.b_add = ttk.Button(self, text="Add thread", command=self.add, style="Accent.TButton")
@@ -667,51 +663,60 @@ class FaceTab(ttk.Frame):
             raise ValueError("Height must be between 50% and 100%")
         return x / 100
 
+    SIZE_RE = re.compile(r"^\s*M?\s*(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*$", re.IGNORECASE)
+
+    def _size(self):
+        """(diameter, pitch) of the Size field: a size from a list, or typed as M9x1.5."""
+        name = self.v["size"].get().strip()
+        for std in (self.v["standard"].get(),) + self.STANDARDS:
+            table = tg.STANDARDS[std][0]
+            if name in table:
+                return table[name]
+        m = self.SIZE_RE.match(name)
+        if not m:
+            raise ValueError("Size must be one from the list, or typed like M9x1.5")
+        d, p = (float(g.replace(",", ".")) for g in m.groups())
+        if d <= 0 or p <= 0 or p >= d:
+            raise ValueError("Size needs a diameter larger than the pitch, like M9x1.5")
+        return d, p
+
     def _redraw(self, key=None):
         try:
-            d = float(self.v["diameter"].get().replace(",", "."))
-            p = float(self.v["pitch"].get().replace(",", "."))
+            d, p = self._size()
             o = self._tolerance()
             h = self._height()
         except (ValueError, KeyError):
             return  # half-typed value: keep the last drawing
-        if d > 0 and p > 0:
-            self.diagram.draw(d, p, o, h, key)
+        self.diagram.draw(d, p, o, h, key)
 
     def _on_standard(self):
         table, _ = tg.STANDARDS[self.v["standard"].get()]
         self.size_cb.configure(values=list(table))
-        if self.v["size"].get() not in table:
-            self.v["size"].set("M10" if "M10" in table else next(iter(table)))
-        self._on_size()
-
-    def _on_size(self):
-        d, p = tg.STANDARDS[self.v["standard"].get()][0][self.v["size"].get()]
-        self.v["diameter"].set(f"{d:g}")
-        self.v["pitch"].set(f"{p:.4g}")
+        if self.v["size"].get() in table:
+            return
+        try:  # the size in this standard nearest to the current diameter
+            d = self._size()[0]
+        except ValueError:
+            d = 8.0
+        self.v["size"].set(min(table, key=lambda n: abs(table[n][0] - d)))
 
     def _pick_size(self, d, p, face_d=None, internal=False):
         """Select the size for the face SolidCraft measured.
 
-        With the 3D-printed standard: a shaft's own diameter, or for a hole the
-        diameter whose tap drill (diameter - pitch) the hole is. Otherwise the
-        standard size matching SolidCraft's fit (d, p), if there is one."""
+        With the 3D-printed standard the pitch of the current size is kept: a
+        shaft gets its own diameter, a hole the diameter whose tap drill
+        (diameter - pitch) it is. Otherwise the standard size matching
+        SolidCraft's fit (d, p), if there is one."""
         if self.v["standard"].get() == tg.PRINTED and face_d:
             try:
-                chosen = float(self.v["pitch"].get())
+                pitch = self._size()[1]
             except ValueError:
-                chosen = None
-            if self.pitch_auto or chosen not in tg.PRINTED_PITCHES:
-                # the pitch that suits the size; for a hole the size depends on the pitch
-                pitches = [p for p in tg.PRINTED_PITCHES
-                           if tg.printed_pitch(round(face_d + p) if internal else round(face_d)) == p]
-                pitch = pitches[0] if pitches else 2.5
-            else:
-                pitch = chosen
+                pitch = 1.0
+            if pitch not in tg.PRINTED_PITCHES:
+                pitch = 1.0
             name = f"M{round(face_d + pitch) if internal else round(face_d)}x{pitch:g}"
             if name in tg.PRINTED_METRIC:
                 self.v["size"].set(name)
-                self._on_size()
                 return
         for std in self.STANDARDS[1:]:
             for name, (d0, p0) in tg.STANDARDS[std][0].items():
@@ -719,10 +724,8 @@ class FaceTab(ttk.Frame):
                     self.v["standard"].set(std)
                     self._on_standard()
                     self.v["size"].set(name)
-                    self._on_size()
                     return
-        self.v["diameter"].set(f"{d:g}")
-        self.v["pitch"].set(f"{p:g}")
+        self.v["size"].set(f"M{d:g}x{p:g}")
 
     def _num(self, key, label, optional=False):
         s = self.v[key].get().strip().replace(",", ".")
@@ -794,9 +797,10 @@ class FaceTab(ttk.Frame):
         if not info.get("internal") or not info.get("face_diameter"):
             return ""
         try:
-            want = float(self.v["diameter"].get()) - float(self.v["pitch"].get())
+            d, p = self._size()
         except ValueError:
             return ""
+        want = d - p
         have = info["face_diameter"]
         if abs(have - want) < 0.3:
             return ""
@@ -822,8 +826,7 @@ class FaceTab(ttk.Frame):
 
     def add(self):
         try:
-            d = self._num("diameter", "Diameter")
-            p = self._num("pitch", "Pitch")
+            d, p = self._size()
             offset = self._tolerance()
             height = self._height()
             length = self._num("length", "Length", optional=True)
