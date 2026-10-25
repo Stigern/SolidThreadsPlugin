@@ -24,7 +24,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 # SolidCraft plugin manifest (Preferences > Plugins). SolidCraft accepts exactly these four
 # fields: id (must match the folder name), name, version and description (<= 240 chars).
@@ -73,8 +73,20 @@ PRINT_FRIENDLY = {
 # Coarse 60° metric threads for FDM printing, after CustomThreads
 # (github.com/BalzGuenat/CustomThreads, MIT): ISO profile, 3.5 or 5 mm pitch at
 # any diameter, so the thread is deep enough to survive 0.2-0.3 mm layers.
-PRINTED_METRIC = {f"M{d}x{p:g}": (float(d), p) for d in range(8, 51) for p in (3.5, 5.0)}
-PRINTED = "3D-printed metric (3.5/5 mm pitch)"
+# A 2.5 mm pitch is added for smaller parts (from M6), where 3.5 is very coarse,
+# and an experimental 2 mm pitch from M4 (on M4-M5 the core is thin: about half
+# the diameter).
+PRINTED_PITCHES = (2.0, 2.5, 3.5, 5.0)
+_PRINTED_FROM = {2.0: 4, 2.5: 6, 3.5: 8, 5.0: 8}  # smallest diameter per pitch
+PRINTED_METRIC = {f"M{d}x{p:g}": (float(d), p) for d in range(4, 51)
+                  for p in PRINTED_PITCHES if d >= _PRINTED_FROM[p]}
+PRINTED = "3D-printed metric (2/2.5/3.5/5 mm pitch)"
+
+
+def printed_pitch(diameter: float) -> float:
+    """The suggested printed pitch for a diameter: 2 below M6 (experimental),
+    2.5 up to M16, 3.5 up to M30, then 5."""
+    return 2.0 if diameter < 6 else 2.5 if diameter <= 16 else 3.5 if diameter <= 30 else 5.0
 
 STANDARDS = {
     PRINTED: (PRINTED_METRIC, "iso"),

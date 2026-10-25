@@ -36,13 +36,17 @@ The first tab works on the design you have open in SolidCraft (0.22 or later):
 
 **Sizes.** The default standard, *3D-printed metric*, follows
 [CustomThreads](https://github.com/BalzGuenat/CustomThreads) (MIT): the ISO 60°
-profile with a coarse 3.5 or 5 mm pitch for M8–M50. Standard ISO threads
+profile with a coarse pitch, 3.5 or 5 mm for M8–M50, plus 2.5 mm for M6–M50
+for smaller parts, and an experimental 2 mm pitch for M4–M50 (on M4–M5 the core
+left inside the thread is only about half the diameter). Standard ISO threads
 (M10 has a 1.5 mm pitch) are only about 0.9 mm deep, a few layers, and print
-poorly; a 3.5 mm pitch is about 2 mm deep. ISO metric, fine and UNC sizes are
-still there for parts that must fit metal screws.
+poorly; a 2.5 mm pitch is about 1.5 mm deep and 3.5 mm about 2 mm. Until you
+pick a size yourself, the pitch follows the diameter: 2 mm below M6, 2.5 mm up
+to M16, 3.5 mm up to M30, 5 mm above. ISO metric (M1–M48, including M4x0.7),
+fine and UNC sizes are still there for parts that must fit metal screws.
 
 Model the parts at the nominal size: a shaft at the thread diameter (10 mm for
-M10x3.5), and a hole at diameter − pitch (6.5 mm for M10x3.5). The generator
+M10x2.5), and a hole at diameter − pitch (7.5 mm for M10x2.5). The generator
 picks the size from that, and warns when a hole doesn't match the thread.
 
 **Tolerance** uses CustomThreads' classes: O.2 makes this part 0.2 mm looser on

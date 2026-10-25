@@ -451,14 +451,20 @@ class FaceTab(ttk.Frame):
                            values=self.STANDARDS, state="readonly", width=30)
         std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
         self._row(r, "Standard", std); r += 1
-        Tip(std, "3D-printed metric: ISO 60° profile with a coarse 3.5 or 5 mm pitch,\n"
-                 "deep enough to print well at 0.2-0.3 mm layers (as CustomThreads).\n"
+        Tip(std, "3D-printed metric: ISO 60° profile with a coarse 2, 2.5, 3.5 or 5 mm pitch,\n"
+                 "deep enough to print well at 0.2-0.3 mm layers (after CustomThreads).\n"
+                 "The pitch follows the size (2 below M6, 2.5 to M16, 3.5 to M30, then 5)\n"
+                 "until you pick one. 2 mm is experimental: M4-M5 get a thin core.\n"
                  "Standard ISO sizes fit metal screws, but their fine pitch prints poorly.")
-        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10x3.5"), state="readonly", width=20)
-        self.size_cb.bind("<<ComboboxSelected>>", lambda e: self._on_size())
+        self.pitch_auto = True  # until the user picks a size, the pitch follows the diameter
+        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M10x2.5"), state="readonly", width=20)
+        self.size_cb.bind("<<ComboboxSelected>>", lambda e: (setattr(self, "pitch_auto", False),
+                                                             self._on_size()))
         self._row(r, "Size", self.size_cb); r += 1
         self._row(r, "Diameter", ttk.Entry(self, textvariable=var("diameter", "10"), width=10), "mm"); r += 1
-        self._row(r, "Pitch", ttk.Entry(self, textvariable=var("pitch", "3.5"), width=10), "mm"); r += 1
+        pitch = ttk.Entry(self, textvariable=var("pitch", "2.5"), width=10)
+        pitch.bind("<Key>", lambda e: setattr(self, "pitch_auto", False))
+        self._row(r, "Pitch", pitch, "mm"); r += 1
         cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
         self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter"); r += 1
         Tip(cl, "How much looser than nominal this part is, on its diameter\n"
@@ -504,11 +510,20 @@ class FaceTab(ttk.Frame):
         diameter whose tap drill (diameter - pitch) the hole is. Otherwise the
         standard size matching SolidCraft's fit (d, p), if there is one."""
         if self.v["standard"].get() == tg.PRINTED and face_d:
-            pitch = float(self.v["pitch"].get() or 3.5)
-            pitch = pitch if pitch in (3.5, 5.0) else 3.5
-            nominal = round(face_d + pitch) if internal else round(face_d)
-            if 8 <= nominal <= 50:
-                self.v["size"].set(f"M{nominal}x{pitch:g}")
+            try:
+                chosen = float(self.v["pitch"].get())
+            except ValueError:
+                chosen = None
+            if self.pitch_auto or chosen not in tg.PRINTED_PITCHES:
+                # the pitch that suits the size; for a hole the size depends on the pitch
+                pitches = [p for p in tg.PRINTED_PITCHES
+                           if tg.printed_pitch(round(face_d + p) if internal else round(face_d)) == p]
+                pitch = pitches[0] if pitches else 2.5
+            else:
+                pitch = chosen
+            name = f"M{round(face_d + pitch) if internal else round(face_d)}x{pitch:g}"
+            if name in tg.PRINTED_METRIC:
+                self.v["size"].set(name)
                 self._on_size()
                 return
         for std in self.STANDARDS[1:]:
