@@ -1,6 +1,6 @@
 [package]
 name = "thread-generator"
-version = "2.0.4"
+version = "2.0.5"
 edition = "2021"
 description = "3D-printable threads with print tolerance, a SolidCraft plugin"
 license = "MIT"
