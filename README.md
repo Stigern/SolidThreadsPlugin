@@ -37,8 +37,9 @@ listed the standalone window in Preferences.
    Ctrl+Z undoes the whole run.
 
 **Size** *Auto* fits the face: a shaft gets its own diameter (Ø8 with a 1 mm
-pitch is M8x1), a hole the size whose tap drill it is (Ø7 with a 1 mm pitch is
-M8x1). Or type a size: `M9x1.5` (diameter × pitch), `M10` (the pitch comes from
+pitch is M8x1), and so does a hole of a whole millimetre (Ø14 is M14x1), so a
+shaft and a hole modelled at the same diameter fit each other. Any other hole is
+read as a tap drill (Ø6.8 with a 1 mm pitch is M8x1). Or type a size: `M9x1.5` (diameter × pitch), `M10` (the pitch comes from
 *Pitch*) or a UNC size like `1/4-20`. *Pitch: ISO standard* uses the metric
 coarse pitch, or SolidCraft's own ISO fit for the face with *Auto*.
 

@@ -158,7 +158,10 @@ pub fn add_thread<R: Runner>(r: &mut R, p: &Params) -> Result<Value, Error> {
     if p.tolerance > pitch / 2.0 {
         return Err(Error::input("tolerance", format!("tolerance can be at most {} mm for a {} mm pitch", sizes::fmt(pitch / 2.0, 4), sizes::fmt(pitch, 4))));
     }
-    let geo = sizes::geometry(d, pitch, p.tolerance, info.internal, p.height);
+    let mut geo = sizes::geometry(d, pitch, p.tolerance, info.internal, p.height);
+    if geo.surface.is_none() {
+        geo.surface = sizes::open_narrow_hole(info.internal, face.diameter, d, pitch, p.tolerance);
+    }
     let tag = sizes::label(info.internal, d, pitch, p.tolerance, p.height);
     let kind = if info.internal { "hole" } else { "shaft" };
     r.log(&format!("{} on {}: Ø{} mm, cutting {} as {}", kind, face.body, sizes::fmt(face.diameter, 3), tag, geo.designation));
@@ -204,7 +207,8 @@ pub fn add_thread<R: Runner>(r: &mut R, p: &Params) -> Result<Value, Error> {
         r.run("timeline.group", json!({"name": group, "features": features}))?;
     }
 
-    let hint = sizes::drill_hint(&info, d, pitch);
+    // Below full height the hole was set to its diameter above, whatever it was drilled at.
+    let hint = if geo.surface.is_none() { sizes::drill_hint(&info, d, pitch) } else { None };
     if let Some(h) = &hint {
         r.log(&format!("Tip: {h}"));
     }
@@ -340,7 +344,7 @@ mod tests {
 
     #[test]
     fn full_height_hole_is_one_step() {
-        let mut f = Fake { selection: face(3.5), internal: true, calls: vec![] };
+        let mut f = Fake { selection: face(3.6), internal: true, calls: vec![] };
         let p = parse_params(&json!({"size": "Auto", "pitch": "1 mm", "tolerance": "O.2", "height": "100%", "length": 6})).unwrap();
         let out = add_thread(&mut f, &p).unwrap();
         assert!(!commands(&f).contains(&"solid.offset_face"));
@@ -349,7 +353,7 @@ mod tests {
         assert_eq!(cut["designation"], "M8.2x1");
         assert_eq!(cut["length"], "6 mm");
         // picked halfway along a face free at both ends: start from the nearer end
-        assert_eq!(cut["from"], json!([3.5, 0.0, 0.0]));
+        assert_eq!(cut["from"], json!([3.6, 0.0, 0.0]));
         assert_eq!(out["name"], "Internal M8x1 O.2");
         assert_eq!(out["hint"], Value::Null);
     }

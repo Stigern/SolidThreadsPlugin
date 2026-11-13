@@ -697,7 +697,9 @@ class FaceTab(ttk.Frame):
         """Select the size for the face SolidCraft measured.
 
         With the 3D-printed standard the pitch of the current size is kept: a
-        shaft gets its own diameter, a hole the diameter whose tap drill
+        shaft gets its own diameter, and so does a hole of a whole millimetre
+        (a Ø14 hole is M14, so it takes a bolt made from a Ø14 shaft); any
+        other hole is a tap drill and gets the diameter whose tap drill
         (diameter - pitch) it is. Otherwise the standard size matching
         SolidCraft's fit (d, p), if there is one."""
         if self.v["standard"].get() == tg.PRINTED and face_d:
@@ -707,10 +709,15 @@ class FaceTab(ttk.Frame):
                 pitch = 1.0
             if pitch not in tg.PRINTED_PITCHES:
                 pitch = 1.0
-            name = f"M{round(face_d + pitch) if internal else round(face_d)}x{pitch:g}"
-            if name in tg.PRINTED_METRIC:
-                self.v["size"].set(name)
-                return
+            names = [f"M{round(face_d)}x{pitch:g}"]
+            if internal:
+                tap = f"M{round(face_d + pitch)}x{pitch:g}"
+                # a whole-millimetre hole is its own size, if the pitch is offered on it
+                names = names + [tap] if abs(face_d - round(face_d)) < 0.05 else [tap]
+            for name in names:
+                if name in tg.PRINTED_METRIC:
+                    self.v["size"].set(name)
+                    return
         for std in self.STANDARDS[1:]:
             for name, (d0, p0) in tg.STANDARDS[std][0].items():
                 if abs(d0 - d) < 0.01 and abs(p0 - p) < 0.001:
@@ -795,7 +802,8 @@ class FaceTab(ttk.Frame):
             return ""
         want = d - p
         have = info["face_diameter"]
-        if abs(have - want) < 0.3:
+        # near the tap drill, or at the nominal size, which SolidCraft narrows itself
+        if abs(have - want) < 0.3 or abs(have - d) < 0.3:
             return ""
         return (f" Tip: for {self.v['size'].get() or 'this thread'} the hole should be "
                 f"about Ø{want:g} mm; it is Ø{have:.4g} mm"

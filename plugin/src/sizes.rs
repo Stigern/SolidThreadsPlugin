@@ -159,8 +159,11 @@ pub struct Probe {
 
 /// The nominal size (diameter, pitch) to cut, from the dialog's Size and Pitch and the face.
 ///
-/// Auto with a printed pitch keeps that pitch: a shaft gets its own diameter, a hole the
-/// diameter whose tap drill (diameter - pitch) it is. Auto with ISO takes SolidCraft's fit.
+/// Auto with a printed pitch keeps that pitch. A shaft gets its own diameter. A hole of a whole
+/// millimetre does too (a Ø14 hole is M14, so it takes a bolt made from a Ø14 shaft); any other
+/// hole is a tap drill and gets the diameter whose tap drill (diameter - pitch) it is: Ø6.8 -> M8.
+/// So does a whole-millimetre hole too small for the pitch: Ø3 -> M4x1. Auto with ISO takes
+/// SolidCraft's fit.
 pub fn choose_size(size: &Size, pitch: Pitch, face: &Probe) -> Result<(f64, f64), String> {
     let (d, p) = match (size, pitch) {
         (Size::Full(d, p), _) => (*d, *p),
@@ -171,8 +174,10 @@ pub fn choose_size(size: &Size, pitch: Pitch, face: &Probe) -> Result<(f64, f64)
         },
         (Size::Auto, Pitch::Iso) => (face.major_diameter, face.pitch),
         (Size::Auto, Pitch::Printed(p)) => {
-            let d = if face.internal { (face.face_diameter + p).round() } else { face.face_diameter.round() };
             let smallest = PRINTED_PITCHES.iter().find(|(q, _)| *q == p).map(|(_, from)| *from).unwrap_or(4.0);
+            let own = face.face_diameter.round();
+            let nominal = !face.internal || ((face.face_diameter - own).abs() < 0.05 && own >= smallest);
+            let d = if nominal { own } else { (face.face_diameter + p).round() };
             if d < smallest {
                 let kind = if face.internal { "hole" } else { "shaft" };
                 return Err(format!(
@@ -221,6 +226,14 @@ pub fn geometry(diameter: f64, pitch: f64, offset: f64, internal: bool, height: 
         (d, Some(d - 2.0 * trim))
     };
     Geometry { designation: designation(d, pitch), surface, tooth: height * h0 }
+}
+
+/// At full height a hole is left as drilled, unless it is narrower than the thread's minor
+/// diameter: SolidCraft refuses to cut teeth that would fill the hole, so it is opened up to the
+/// minor diameter first. `have` is the hole's diameter; returns the diameter to open it to.
+pub fn open_narrow_hole(internal: bool, have: f64, diameter: f64, pitch: f64, offset: f64) -> Option<f64> {
+    let minor = diameter + offset - 2.0 * ISO_HEIGHT * pitch;
+    (internal && have < minor - 1e-3).then_some(minor)
 }
 
 /// The timeline name of a thread: "External M8x1 O.15 85%".
@@ -286,14 +299,16 @@ pub fn start_from(span: &Span, pick: [f64; 3]) -> Option<[f64; 3]> {
     Some([0, 1, 2].map(|i| pick[i] + (to - t) * a[i]))
 }
 
-/// For a hole: a note when it is far from the tap drill (diameter - pitch) the thread wants.
+/// For a hole left as it is (full height): a note when it is far from the tap drill
+/// (diameter - pitch) the thread wants. None for a hole at the nominal diameter, which SolidCraft
+/// narrows to the thread itself.
 pub fn drill_hint(face: &Probe, diameter: f64, pitch: f64) -> Option<String> {
     if !face.internal {
         return None;
     }
     let want = diameter - pitch;
     let have = face.face_diameter;
-    if (have - want).abs() < 0.3 {
+    if (have - want).abs() < 0.3 || (have - diameter).abs() < 0.3 {
         return None;
     }
     let tail = if have > want { ", so the thread is shallow" } else { "" };
@@ -366,8 +381,16 @@ mod tests {
         // a shaft gets its own diameter, a hole the size whose tap drill it is
         assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &shaft(8.0)), Ok((8.0, 1.0)));
         assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &shaft(7.9)), Ok((8.0, 1.0)));
-        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &hole(7.0)), Ok((8.0, 1.0)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &hole(6.8)), Ok((8.0, 1.0)));
         assert_eq!(choose_size(&Size::Auto, Pitch::Printed(3.5), &hole(16.5)), Ok((20.0, 3.5)));
+        // a whole-millimetre hole is its own size, as a shaft is: a Ø14 shaft and a Ø14 hole mate
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &hole(14.0)), Ok((14.0, 1.0)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &shaft(14.0)), Ok((14.0, 1.0)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &hole(13.999)), Ok((14.0, 1.0)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(2.0), &hole(8.0)), Ok((8.0, 2.0)));
+        // unless it is too small for the pitch: then it is a tap drill
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.0), &hole(3.0)), Ok((4.0, 1.0)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(5.0), &hole(5.0)), Ok((10.0, 5.0)));
         assert!(choose_size(&Size::Auto, Pitch::Printed(3.5), &shaft(6.0)).is_err());
         assert_eq!(choose_size(&Size::Auto, Pitch::Iso, &shaft(8.0)), Ok((8.0, 1.25)));
     }
@@ -395,6 +418,15 @@ mod tests {
         // at full height a shaft still goes to the looser diameter; a hole is left alone
         assert_eq!(geometry(8.0, 1.0, 0.2, false, 1.0).surface, Some(7.8));
         assert_eq!(geometry(8.0, 1.0, 0.2, true, 1.0).surface, None);
+    }
+
+    #[test]
+    fn opens_only_holes_too_narrow_for_the_teeth() {
+        let minor = 8.2 - 2.0 * ISO_HEIGHT;
+        assert_eq!(open_narrow_hole(true, 6.8, 8.0, 1.0, 0.2), Some(minor));
+        assert_eq!(open_narrow_hole(true, 7.2, 8.0, 1.0, 0.2), None);
+        assert_eq!(open_narrow_hole(true, 8.0, 8.0, 1.0, 0.2), None);
+        assert_eq!(open_narrow_hole(false, 6.8, 8.0, 1.0, 0.2), None);
     }
 
     #[test]
@@ -428,5 +460,8 @@ mod tests {
         assert_eq!(drill_hint(&shaft(8.0), 8.0, 1.0), None);
         assert_eq!(drill_hint(&hole(7.0), 8.0, 1.0), None);
         assert!(drill_hint(&hole(6.0), 8.0, 1.0).unwrap().contains("Ø7 mm"));
+        assert!(drill_hint(&hole(7.6), 8.0, 1.0).unwrap().contains("shallow"));
+        // a hole at the nominal size: SolidCraft narrows it
+        assert_eq!(drill_hint(&hole(14.0), 14.0, 1.0), None);
     }
 }
