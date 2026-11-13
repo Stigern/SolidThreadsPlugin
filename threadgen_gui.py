@@ -25,19 +25,71 @@ HELP = {
     "clearance": "Gap added on every surface of this part, in mm.\n"
                  "Bolts get thinner, nuts get wider. A printed bolt and a printed\n"
                  "nut end up with twice this gap. FDM: 0.1-0.2, resin: 0.05-0.1.",
-    "pitch": "Distance between neighbouring thread crests (mm).",
+    "pitch": "Distance between neighbouring thread crests (mm).\n"
+             "A larger pitch gives deeper, coarser teeth that print more\n"
+             "reliably and screw in with fewer turns. Picking a Size fills it in.",
     "starts": "Number of interleaved threads. 2-4 starts screw on faster\n"
               "(each turn advances starts x pitch). Bolt and nut must match.",
-    "depth": "Radial depth of the thread. Leave blank for the standard depth.",
-    "chamfer": "Lead-in bevel on the thread ends. Blank = automatic.",
+    "depth": "Radial depth of the teeth, mm. Blank: the standard depth for\n"
+             "the profile. Shallower teeth print more easily but grip less.",
+    "chamfer": "Lead-in bevel on the thread ends, mm, so the parts find each\n"
+               "other and start turning easily. Blank = automatic.",
+    "standard": "Which family of sizes the Size list offers.\n"
+                "3D-printed metric: ISO 60° teeth with 1-5 mm pitches that print well.\n"
+                "ISO metric coarse / fine and UNC: standard sizes that fit metal screws and nuts.\n"
+                "Trapezoidal (Tr): strong flat-topped teeth for lead screws and clamps.\n"
+                "Large / jar: big coarse threads for jars, lids and caps.\n"
+                "Custom: type any diameter and pitch.",
+    "size": "The thread size from the chosen standard, like M10 or Tr8x2.\n"
+            "Picking one fills in Diameter, Pitch and Profile.",
+    "diameter": "Nominal (outside) diameter of the thread, mm.\n"
+                "The bolt is made this size, less the clearance; the nut fits\n"
+                "a bolt of this size, plus the clearance.",
+    "profile": "Shape of the teeth.\n"
+               "60° V: ordinary screws (ISO, UNC).\n"
+               "30° trapezoidal and 29° ACME: strong flat-topped teeth for lead screws.\n"
+               "Square: least friction, but the hardest to print.\n"
+               "Buttress: takes force in one direction only, like a vice or a lid.",
+    "left": "A left-hand thread screws in turning anticlockwise.\n"
+            "The bolt and the nut must both be left-hand.",
+    "quality": "How finely the surfaces are divided into triangles.\n"
+               "Draft: quick and small, visibly faceted. Normal: smooth enough\n"
+               "for printing. Fine: smoother curves, a bigger file, slower.",
+    "length": "Length of the bolt's shaft below the head (or of the whole rod\n"
+              "or cutter), mm. Plain shank is part of it.",
+    "shank": "Smooth, unthreaded part of the shaft just under the head, mm.\n"
+             "It is part of Length. 0 threads the whole shaft.",
+    "shape": "Hex fits a spanner. Round suits knobs turned by hand.\n"
+             "Square is easy to hold in a printed slot.",
+    "head_flats": "Width of the head across its flats (hex, square) or its\n"
+                  "diameter (round), mm. Blank: the ISO size (M8: 13 mm).",
+    "head_height": "Height of the head, mm. Blank: about 0.64 x the diameter.",
+    "nut_flats": "Width of the nut across its flats (hex, square) or its\n"
+                 "diameter (round), mm. Blank: the ISO size (M8: 13 mm).",
+    "nut_height": "Height of the nut, mm. Blank: about 0.8 x the diameter.\n"
+                  "A taller nut has more turns gripping, so it holds more.",
+    "out": "Folder that Save STL and Open in SolidCraft write to.\n"
+           "The 3MF export on the thread tab saves here too.",
+}
+
+PART_HELP = {
+    "bolt": "A bolt: head on top of a threaded shaft. Prints head down.",
+    "rod": "A threaded rod with no head, chamfered at both ends.",
+    "nut": "A nut with an internal thread.",
+    "pair": "A bolt and a nut that fit each other, side by side in one file.\n"
+            "Each gets the clearance, so together they have twice the gap.",
+    "cutter": "The empty space of an internal thread, as a solid. In the slicer,\n"
+              "add it as a negative part (or subtract it in CAD) where a hole\n"
+              "should get a thread.",
 }
 
 
 class Tip:
     def __init__(self, widget, text):
         self.widget, self.text, self.win = widget, text, None
-        widget.bind("<Enter>", self.show)
-        widget.bind("<Leave>", self.hide)
+        # added to the widget's own hover bindings (the face tab's drawing highlight), not in place of them
+        widget.bind("<Enter>", self.show, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
 
     def show(self, _):
         self.hide(None)  # a second <Enter> without <Leave> would leave the first tip stuck
@@ -94,6 +146,14 @@ class App(ttk.Frame):
         self.b_save.grid(row=0, column=3, padx=4)
         self.b_open = ttk.Button(bar, text="Open in SolidCraft", command=self.open_sc)
         self.b_open.grid(row=0, column=4, padx=4)
+        Tip(self.b_locate, "Point to the folder with solidcraft-cli.exe, if SolidCraft\n"
+                           "isn't found by itself. Preview and Open in SolidCraft need it.")
+        Tip(self.b_prev, "Builds the part and shows a picture of it here, without\n"
+                         "saving it to the output folder. Uses SolidCraft to render.")
+        Tip(self.b_save, "Writes the part as STL to the output folder and opens\n"
+                         "the folder. Works without SolidCraft.")
+        Tip(self.b_open, "Saves the part to the output folder and opens it as a\n"
+                         "design in SolidCraft, to edit or combine with other parts.")
         self._refresh_sc()
 
         self._on_standard()
@@ -125,8 +185,10 @@ class App(ttk.Frame):
         g.grid(row=0, column=0, sticky="ew")
         self._var("part", "pair")
         for i, p in enumerate(tg.PART_TYPES):
-            ttk.Radiobutton(g, text=tg.PART_LABELS[p], value=p, variable=self.v["part"],
-                            command=self._on_part).grid(row=i, column=0, sticky="w")
+            rb = ttk.Radiobutton(g, text=tg.PART_LABELS[p], value=p, variable=self.v["part"],
+                                 command=self._on_part)
+            rb.grid(row=i, column=0, sticky="w")
+            Tip(rb, PART_HELP[p])
 
         # thread
         g = ttk.LabelFrame(f, text="Thread", padding=6)
@@ -135,20 +197,21 @@ class App(ttk.Frame):
         std = ttk.Combobox(g, textvariable=self._var("standard", "ISO metric coarse"),
                            values=list(tg.STANDARDS) + [CUSTOM], state="readonly", width=24)
         std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
-        self._row(g, 0, "Standard", std)
+        self._row(g, 0, "Standard", std, "standard")
         self.size_cb = ttk.Combobox(g, textvariable=self._var("size", "M10"), state="readonly", width=24)
         self.size_cb.bind("<<ComboboxSelected>>", lambda e: self._on_size())
-        self._row(g, 1, "Size", self.size_cb)
-        self.e_d = self._row(g, 2, "Diameter", self._entry(g, "diameter", "10"), unit="mm")
+        self._row(g, 1, "Size", self.size_cb, "size")
+        self.e_d = self._row(g, 2, "Diameter", self._entry(g, "diameter", "10"), "diameter", "mm")
         self.e_p = self._row(g, 3, "Pitch", self._entry(g, "pitch", "1.5"), "pitch", "mm")
         prof = ttk.Combobox(g, textvariable=self._var("profile", tg.PROFILE_LABELS["iso"]),
                             values=list(tg.PROFILE_LABELS.values()), state="readonly", width=24)
-        self._row(g, 4, "Profile", prof)
+        self._row(g, 4, "Profile", prof, "profile")
         self._row(g, 5, "Starts", ttk.Spinbox(g, from_=1, to=8, width=8,
                                                textvariable=self._var("starts", "1")), "starts")
         self._row(g, 6, "Depth", self._entry(g, "depth", ""), "depth", "mm (blank = auto)")
-        ttk.Checkbutton(g, text="Left-hand thread", variable=self._var("left", False, tk.BooleanVar)
-                        ).grid(row=7, column=1, sticky="w")
+        lh = ttk.Checkbutton(g, text="Left-hand thread", variable=self._var("left", False, tk.BooleanVar))
+        lh.grid(row=7, column=1, sticky="w")
+        Tip(lh, HELP["left"])
 
         # fit
         g = ttk.LabelFrame(f, text="Fit & print", padding=6)
@@ -157,7 +220,7 @@ class App(ttk.Frame):
         self._row(g, 0, "Clearance", self._entry(g, "clearance", "0.15"), "clearance", "mm per part")
         self._row(g, 1, "Chamfer", self._entry(g, "chamfer", ""), "chamfer", "mm (blank = auto)")
         self._row(g, 2, "Quality", ttk.Combobox(g, textvariable=self._var("quality", "normal"),
-                                                 values=list(tg.QUALITY), state="readonly", width=10))
+                                                 values=list(tg.QUALITY), state="readonly", width=10), "quality")
 
         # dimensions
         g = ttk.LabelFrame(f, text="Dimensions (blank = standard)", padding=6)
@@ -180,14 +243,21 @@ class App(ttk.Frame):
         for r, (key, label, w, unit) in enumerate(items):
             lab = ttk.Label(g, text=label)
             un = ttk.Label(g, text=unit, foreground=PAL["dim"])
+            tip = HELP["shape" if key.endswith("_shape") else key]
+            Tip(lab, tip)
+            Tip(w, tip)
             self.dim_rows[key] = (lab, w, un, r)
 
         # output
         g = ttk.LabelFrame(f, text="Output folder", padding=6)
         g.grid(row=4, column=0, sticky="ew", pady=(8, 0))
         g.columnconfigure(0, weight=1)
-        ttk.Entry(g, textvariable=self._var("out", tg.load_settings().get("out_dir") or DEFAULT_OUT), width=32).grid(row=0, column=0, sticky="ew")
-        ttk.Button(g, text="…", width=3, command=self._browse).grid(row=0, column=1, padx=(4, 0))
+        out = ttk.Entry(g, textvariable=self._var("out", tg.load_settings().get("out_dir") or DEFAULT_OUT), width=32)
+        out.grid(row=0, column=0, sticky="ew")
+        Tip(out, HELP["out"])
+        pick = ttk.Button(g, text="…", width=3, command=self._browse)
+        pick.grid(row=0, column=1, padx=(4, 0))
+        Tip(pick, "Pick the output folder.")
 
     # -- events -------------------------------------------------------------
     def _sc_status(self):
@@ -549,6 +619,7 @@ class FaceTab(ttk.Frame):
         self.v = {}
         self.busy = False
         self.face = None  # the face "Use selected face" read
+        self._labels = {}  # setting -> its label, for tooltips
         self.columnconfigure(2, weight=1)
         var = lambda k, val="", kind=tk.StringVar: self.v.setdefault(k, kind(value=val))
 
@@ -556,6 +627,10 @@ class FaceTab(ttk.Frame):
                   wraplength=360, justify="left").grid(row=0, column=0, columnspan=3, sticky="w")
         self.b_use = ttk.Button(self, text="Use selected face", command=self.use_face)
         self.b_use.grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 2))
+        Tip(self.b_use, "Reads the face selected in SolidCraft (a shaft, or the inside of a\n"
+                        "hole): its size and length, and the thread size that fits it.\n"
+                        "With the 3D-printed standard the pitch you picked is kept.\n"
+                        "Your design is not changed.")
         self.face_lbl = ttk.Label(self, text="No face yet.", foreground=PAL["dim"],
                                   wraplength=360, justify="left")
         self.face_lbl.grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 10))
@@ -567,33 +642,37 @@ class FaceTab(ttk.Frame):
         std.bind("<<ComboboxSelected>>", lambda e: self._on_standard())
         self._row(r, "Standard", std); r += 1
         std.grid_configure(columnspan=2)  # wide: keep the unit column close to the fields
-        Tip(std, "3D-printed metric: ISO 60° profile with a 1, 2, 2.5, 3.5 or 5 mm pitch\n"
+        self._tip(std, "3D-printed metric: ISO 60° profile with a 1, 2, 2.5, 3.5 or 5 mm pitch\n"
                  "on every size (after CustomThreads). The coarse ones print well even\n"
                  "at 0.2-0.3 mm layers; 1 mm needs a printer that holds fine detail.\n"
                  "Standard ISO sizes fit metal screws.")
         self.size_cb = ttk.Combobox(self, textvariable=var("size", "M8x1"), width=20)
         self._row(r, "Size", self.size_cb, "diameter x pitch, mm", key="size"); r += 1
-        Tip(self.size_cb, "M8x1: 8 mm diameter, 1 mm from one thread crest to the next.\n"
+        self._tip(self.size_cb, "M8x1: 8 mm diameter, 1 mm from one thread crest to the next.\n"
                           "A larger pitch gives deeper, coarser teeth.\n"
                           "Pick one, or type your own, e.g. M9x1.5.\n"
                           "When you use a new face, the pitch you picked is kept.")
         cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
         self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter", key="tolerance"); r += 1
-        Tip(cl, "How much looser than nominal this part is, on its diameter\n"
+        self._tip(cl, "How much looser than nominal this part is, on its diameter\n"
                 "(CustomThreads' classes): a bolt gets this much smaller,\n"
                 "a hole this much larger. Printed bolt + printed nut: both get it.\n"
                 "Start with O.2 on both; O.4 if tight, O.15 or O.1 if loose.\n"
                 "Any number works too, e.g. 0.3.")
         ht = ttk.Combobox(self, textvariable=var("height", "85%"), values=self.HEIGHTS, width=10)
         self._row(r, "Height", ht, "how far the teeth stick out", key="height"); r += 1
-        Tip(ht, "Lower teeth with flat tops: a shaft is made thinner and a hole wider\n"
+        self._tip(ht, "Lower teeth with flat tops: a shaft is made thinner and a hole wider\n"
                 "before the thread is cut, so the teeth stick out less. The flanks\n"
                 "stay put, so a bolt and nut with the same height still fit, but\n"
                 "they grip over less depth (the drawing shows the grip).\n"
                 "Use the same height on both parts. 80% is a good low setting;\n"
                 "70% grips only about a quarter as deep as 100%.")
-        self._row(r, "Length", ttk.Entry(self, textvariable=var("length", ""), width=10),
-                  "mm (blank = whole face)", key="length"); r += 1
+        ln = ttk.Entry(self, textvariable=var("length", ""), width=10)
+        self._row(r, "Length", ln, "mm (blank = whole face)", key="length"); r += 1
+        self._tip(ln, "How much of the face to thread, along its axis, in mm.\n"
+                      "Blank threads the whole face. A shorter thread starts at the\n"
+                      "face's free end and leaves the rest smooth, like a plain shank\n"
+                      "under a bolt head.")
 
         self.diagram = ThreadDiagram(self)
         self.diagram.grid(row=r, column=0, columnspan=3, sticky="w", pady=(10, 0)); r += 1
@@ -602,6 +681,10 @@ class FaceTab(ttk.Frame):
 
         self.b_add = ttk.Button(self, text="Add thread", command=self.add, style="Accent.TButton")
         self.b_add.grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 4)); r += 1
+        Tip(self.b_add, "Cuts the thread into the face in SolidCraft, as a modelled thread\n"
+                        "named in the timeline (\"External M8x1 O.2 85%\"). A shaft or hole\n"
+                        "that has to change size first gets a second step, grouped with it.\n"
+                        "Undo in SolidCraft takes it back.")
         self.status = ttk.Label(self, text="", wraplength=420, justify="left")
         self.status.grid(row=r, column=0, columnspan=3, sticky="w"); r += 1
 
@@ -617,18 +700,29 @@ class FaceTab(ttk.Frame):
                            "3D Builder and the slicers' \"Fix model\" use: holes closed,\n"
                            "flipped and crossing triangles fixed. Your design in SolidCraft\n"
                            "is not changed. Saved to the output folder of the STL tab.")
-        ttk.Checkbutton(exp, text="Open in slicer", variable=var("open_slicer", True, tk.BooleanVar)
-                        ).grid(row=0, column=1, sticky="w", padx=(12, 0))
-        ttk.Checkbutton(self, text="Keep this window on top", variable=var("ontop", True, tk.BooleanVar),
-                        command=lambda: root.attributes("-topmost", self.v["ontop"].get())
-                        ).grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        sl = ttk.Checkbutton(exp, text="Open in slicer", variable=var("open_slicer", True, tk.BooleanVar))
+        sl.grid(row=0, column=1, sticky="w", padx=(12, 0))
+        Tip(sl, "After the export, opens the 3MF in the program Windows opens\n"
+                ".3mf files with, usually your slicer.")
+        top = ttk.Checkbutton(self, text="Keep this window on top", variable=var("ontop", True, tk.BooleanVar),
+                              command=lambda: root.attributes("-topmost", self.v["ontop"].get()))
+        top.grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        Tip(top, "Keeps this window above SolidCraft, so you can select faces\n"
+                 "there and add threads here without switching windows.")
         root.attributes("-topmost", True)
         self._focus_key = None
         self._on_standard()
         self._redraw()
 
+    def _tip(self, widget, text):
+        """A tooltip on a setting and on its label."""
+        Tip(widget, text)
+        if widget in self._labels:
+            Tip(self._labels[widget], text)
+
     def _row(self, r, label, widget, unit="", key=None):
         lab = ttk.Label(self, text=label)
+        self._labels[widget] = lab
         lab.grid(row=r, column=0, sticky="w", pady=2, padx=(0, 8))
         widget.grid(row=r, column=1, sticky="w", pady=2)
         parts = [lab, widget]
