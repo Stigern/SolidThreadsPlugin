@@ -31,7 +31,7 @@ listed the standalone window in Preferences.
 1. In SolidCraft, select the round face of a shaft, or the inside of a hole.
 2. **Plugins › Add thread…**
 3. Pick the **size**, **pitch**, **tolerance** and **height**, and optionally a
-   shorter **length**. The defaults are Auto, 1 mm, O.2 and 85%.
+   shorter **length**. The defaults are Auto, 1 mm, O.3 and 75%.
 4. **Run**. SolidCraft cuts a modeled thread into the body. It's a normal
    feature in the timeline, named for example "External M8x1 O.15 85%", and one
    Ctrl+Z undoes the whole run.
@@ -75,8 +75,8 @@ size from that, and warns when a hole doesn't match the thread.
 plus O.25, O.3 and O.35 between O.2 and O.4:
 O.2 makes this part 0.2 mm looser on each diameter (a shaft 0.2 mm smaller, a
 hole 0.2 mm larger). Printing both a bolt and a nut? Give both a class: start
-with O.2 on both, go to O.25-O.35 if it's a bit tight, O.4 if it's hard to
-screw in, O.15 or O.1 if it's loose. The
+with O.3 on both, go to O.35 if it's a bit tight, O.4 if it's hard to
+screw in, O.25 or O.2 if it's loose. The
 standalone window also takes any number in mm.
 
 **Height** sets how far the teeth stick out: 100% is the full ISO height;
