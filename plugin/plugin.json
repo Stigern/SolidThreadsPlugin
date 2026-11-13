@@ -1,0 +1,109 @@
+{
+  "id": "thread-generator",
+  "name": "Thread Generator",
+  "version": "2.0.0",
+  "description": "Cut a 3D-printable thread into the selected shaft or hole: printed pitches, tolerance classes O.0-O.8 and lower teeth. The thread is an editable feature in the timeline.",
+  "capabilities": [
+    "commands@0.1"
+  ],
+  "runtime": {
+    "module": "plugin.wasm",
+    "entries": [
+      {
+        "name": "add-thread",
+        "effect": "edit",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "size",
+            "pitch",
+            "tolerance",
+            "height"
+          ],
+          "properties": {
+            "size": {
+              "type": "string",
+              "title": "Size",
+              "description": "Auto fits the selected face. Or type a size: M8x1 (diameter x pitch), M10 (diameter, pitch from Pitch), or a UNC size like 1/4-20.",
+              "default": "Auto",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "pitch": {
+              "type": "string",
+              "title": "Pitch",
+              "description": "Distance from one crest to the next. 1 to 5 mm are the 3D-printed pitches; a larger pitch gives deeper, coarser teeth. ISO standard uses the metric coarse pitch (M8: 1.25 mm). Ignored when Size names a pitch.",
+              "enum": [
+                "1 mm",
+                "2 mm",
+                "2.5 mm",
+                "3.5 mm",
+                "5 mm",
+                "ISO standard"
+              ],
+              "default": "1 mm"
+            },
+            "tolerance": {
+              "type": "string",
+              "title": "Tolerance",
+              "description": "How much looser this part is on each diameter: O.2 makes a shaft 0.2 mm smaller or a hole 0.2 mm larger. Printing a bolt and a nut? Start with O.2 on both, O.4 if tight, O.15 or O.1 if loose.",
+              "enum": [
+                "O.0",
+                "O.1",
+                "O.15",
+                "O.2",
+                "O.4",
+                "O.8"
+              ],
+              "default": "O.15"
+            },
+            "height": {
+              "type": "string",
+              "title": "Height",
+              "description": "How far the teeth stick out: 100% is the full ISO height, lower gives flat-topped teeth that are easier to print. Use the same height on the bolt and the nut.",
+              "enum": [
+                "100%",
+                "95%",
+                "90%",
+                "85%",
+                "80%",
+                "75%",
+                "70%"
+              ],
+              "default": "85%"
+            },
+            "length": {
+              "type": "number",
+              "title": "Length",
+              "description": "Thread length along the face. Empty threads the whole face.",
+              "exclusiveMinimum": 0,
+              "maximum": 10000,
+              "unit": "mm"
+            }
+          }
+        },
+        "slots": [
+          {
+            "kind": "menu",
+            "name": "Add thread"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      "selection.get",
+      "edit.checkpoint",
+      "edit.restore_checkpoint",
+      "document.inspect",
+      "solid.thread",
+      "solid.offset_face",
+      "timeline.rename",
+      "timeline.group"
+    ],
+    "limits": {
+      "fuel": 200000000,
+      "memory_mib": 64,
+      "deadline_ms": 30000
+    }
+  }
+}

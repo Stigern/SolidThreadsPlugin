@@ -2,43 +2,53 @@
 
 3D-printable threads for [SolidCraft](https://github.com/tangency-labs/solidcraft):
 select a shaft or a hole in SolidCraft, pick a size, tolerance and height, and
-the thread is cut into your model. It can also export a repaired 3MF for your
-slicer, and make bolts, nuts, threaded rods and thread cutters as STL.
+the thread is cut into your model. It comes in two parts:
+
+- **The SolidCraft plugin** (SolidCraft 0.41 or later): *Plugins › Add thread…*
+  cuts the thread into the selected face, right inside SolidCraft.
+- **The standalone window** (Windows): makes bolts, nuts, threaded rods and
+  thread cutters as STL, exports a repaired 3MF for your slicer, and can also
+  thread a face in a running SolidCraft.
 
 ![The Thread Generator panel in dark mode beside SolidCraft, with an M8x1 thread (tolerance O.15, height 85%) cut into a bolt and a nut](docs/screenshot.png)
 
-## Install
+## Install the plugin
 
 1. Download `thread-generator-<version>.zip` from
    [Releases](https://github.com/Stigern/SolidThreadsPlugin/releases).
-2. In SolidCraft open **Preferences → Plugins → Show in folder** and unzip the
-   zip there, so you get `plugins\thread-generator\plugin.json`
-   (on Windows: `%LOCALAPPDATA%\SolidCraft\plugins`).
-3. Reopen Preferences → Plugins: **Thread Generator** is listed.
-4. Start **ThreadGenerator.exe** from that folder. No Python needed. Windows
-   may show "Windows protected your PC" because the program isn't code-signed:
-   click *More info → Run anyway*.
+2. In SolidCraft choose **Plugins › Install plugin…** (or Preferences › Plugins ›
+   Install plugin…) and pick the zip. SolidCraft shows what the plugin asks for:
+   only its own selection, thread, offset-face and timeline commands on the open
+   design. No files, no network, no app settings.
+3. **Plugins › Add thread…** is there at once, no restart needed.
 
-Or unzip it anywhere, run the exe and click *Install as SolidCraft plugin*.
-Files are saved to `Documents\SolidCraft Threads` (change it in the window).
-
-SolidCraft's plugin system currently lists plugins but doesn't run them yet, so
-the generator opens in its own window. When SolidCraft can run plugins
-([#1221](https://github.com/tangency-labs/solidcraft/issues/1221)) it can move
-inside the app.
+The plugin is a sandboxed WebAssembly component (`plugin/`, written in Rust).
+Installing it replaces an older `thread-generator` folder (1.x), which only
+listed the standalone window in Preferences.
 
 ## Thread a face in SolidCraft
 
-The first tab works on the design you have open in SolidCraft (0.22 or later):
-
 1. In SolidCraft, select the round face of a shaft, or the inside of a hole.
-2. Click **Use selected face**. The generator reads whether it's a shaft or a
-   hole, its diameter and length, and picks a size.
-3. Pick the **size**, **tolerance** and **height**, and optionally a shorter
-   length. The defaults are M8x1, O.15 and 85%.
-4. Click **Add thread**. SolidCraft cuts a modeled thread into the body. It's a
-   normal feature in the timeline, named for example "External M8x1 O.15 85%",
-   and Ctrl+Z in SolidCraft undoes it.
+2. **Plugins › Add thread…**
+3. Pick the **size**, **pitch**, **tolerance** and **height**, and optionally a
+   shorter **length**. The defaults are Auto, 1 mm, O.15 and 85%.
+4. **Run**. SolidCraft cuts a modeled thread into the body. It's a normal
+   feature in the timeline, named for example "External M8x1 O.15 85%", and one
+   Ctrl+Z undoes the whole run.
+
+**Size** *Auto* fits the face: a shaft gets its own diameter (Ø8 with a 1 mm
+pitch is M8x1), a hole the size whose tap drill it is (Ø7 with a 1 mm pitch is
+M8x1). Or type a size: `M9x1.5` (diameter × pitch), `M10` (the pitch comes from
+*Pitch*) or a UNC size like `1/4-20`. *Pitch: ISO standard* uses the metric
+coarse pitch, or SolidCraft's own ISO fit for the face with *Auto*.
+
+A partial **length** starts from the face's free end. On a face free at both
+ends, pick the face near the end the thread should start from; a pick in the
+middle starts it from the nearer end.
+
+The standalone window's first tab does the same through SolidCraft's control
+channel (SolidCraft 0.22 or later): select the face, click **Use selected
+face**, then **Add thread**.
 
 **Sizes.** A size is diameter × pitch: M8x1 is 8 mm across with 1 mm from one
 thread crest to the next; a larger pitch gives deeper, coarser teeth. Pick a
@@ -62,18 +72,36 @@ size from that, and warns when a hole doesn't match the thread.
 **Tolerance** uses CustomThreads' classes (O.0, O.1, O.15, O.2, O.4, O.8):
 O.2 makes this part 0.2 mm looser on each diameter (a shaft 0.2 mm smaller, a
 hole 0.2 mm larger). Printing both a bolt and a nut? Give both a class: start
-with O.2 on both, go to O.4 if it's tight, O.15 or O.1 if it's loose. Any
-number in mm works too.
+with O.2 on both, go to O.4 if it's tight, O.15 or O.1 if it's loose. The
+standalone window also takes any number in mm.
 
 **Height** sets how far the teeth stick out: 100% is the full ISO height;
-95%, 90%, 85%, 80%, 75% and 70% (or any value from 50% you type) give lower
+95%, 90%, 85%, 80%, 75% and 70% (or, in the standalone window, any value
+from 50% you type) give lower
 teeth with flat tops. The shaft is first made thinner
 (or the hole wider) and then threaded, so only the tips of the teeth go; the
 flanks stay where they are, and a bolt and nut with the same height still fit.
 They grip over less depth: for M10x2.5 with O.2 the grip is 1.16 mm at 100%,
-0.62 mm at 80% and 0.35 mm at 70%. Use the same height on both parts. A lower
-thread is two steps in the timeline (the face change and the thread), grouped
-in a folder, so Ctrl+Z twice undoes it.
+0.62 mm at 80% and 0.35 mm at 70%. Use the same height on both parts.
+
+A shaft is always brought to the thread's diameter first (with O.2, an M8
+shaft becomes Ø7.8), since SolidCraft won't cut a modeled thread into a shaft
+thicker than the thread. So a looser or lower thread is two steps in the
+timeline (the face change and the thread), grouped in a folder. From the
+plugin one Ctrl+Z undoes both; from the standalone window, Ctrl+Z twice.
+
+Threads are cut into the whole body, and SolidCraft turns every round face of
+that body into small flat facets. Keep separate parts as separate bodies
+(*New Body* when you extrude) so only the threaded part is affected.
+
+## The standalone window
+
+Download `ThreadGenerator-<version>-windows.zip` from
+[Releases](https://github.com/Stigern/SolidThreadsPlugin/releases), unzip it
+anywhere and run **ThreadGenerator.exe**. No Python needed. Windows may show
+"Windows protected your PC" because the program isn't code-signed: click
+*More info → Run anyway*. Files are saved to `Documents\SolidCraft Threads`
+(change it in the window).
 
 The drawing under the settings is a to-scale section through a bolt and a nut
 with the current settings: pitch, height, grip, the tolerance gap and the
@@ -90,10 +118,6 @@ The result goes to `Documents\SolidCraft Threads` and, with *Open in slicer*,
 opens in the program 3MF files open with. Your design in SolidCraft is not
 changed. Needs Windows 10 or 11 (it runs `winrepair.ps1` in Windows PowerShell).
 
-Threads are cut into the whole body, and SolidCraft turns every round face of
-that body into small flat facets. Keep separate parts as separate bodies
-(*New Body* when you extrude) so only the threaded part is affected.
-
 The window stays on top of SolidCraft so you can keep selecting faces.
 
 SolidCraft is optional: without it you can still save STLs for your slicer.
@@ -101,8 +125,23 @@ With it, *Preview* and *Open in SolidCraft* work. If SolidCraft is installed
 somewhere other than `C:\Program Files\SolidCraft`, click *Locate SolidCraft…*.
 
 From source: run `python "Thread Generator.pyw"` (Python 3.10+, standard library
-only). `build.bat` rebuilds the .exe and the release zip (needs PyInstaller);
-`build.bat --install` also installs it in your SolidCraft plugins folder.
+only). `build.bat` rebuilds the .exe and its release zip (needs PyInstaller).
+
+## Build the plugin
+
+`plugin/build.sh` builds `plugin/release/thread-generator-<version>.zip`. It
+needs Rust with the `wasm32-unknown-unknown` target and
+[wasm-tools](https://github.com/bytecodealliance/wasm-tools):
+
+```
+rustup target add wasm32-unknown-unknown
+cargo install wasm-tools --locked
+cd plugin && ./build.sh             # --install also installs it with solidcraft-cli
+cargo test                          # sizes, tolerances, the command sequence
+python tests/cli_test.py            # runs the built plugin in solidcraft-cli on real shafts and holes
+```
+
+`plugin/wit/plugin.wit` is a copy of SolidCraft's `craft:plugin@0.1.0`.
 
 ## Options
 

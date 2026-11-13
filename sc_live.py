@@ -192,8 +192,10 @@ def thread_geometry(diameter: float, pitch: float, offset: float, internal: bool
     """The diameters a thread is cut at.
 
     `designation`: what SolidCraft cuts (the nominal diameter, `offset` looser).
-    `surface`: the diameter the shaft or hole is set to first so the teeth come out
-    `height` (0-1] of the full ISO height, or None to leave the face as it is.
+    `surface`: the diameter the shaft or hole is set to first, or None to leave the
+    face as it is. A shaft always goes to the thread's (looser) diameter, less the
+    trimmed tips: SolidCraft refuses a modeled thread on a shaft thicker than the
+    thread. A hole is opened up only for lower teeth (`height` below 1).
     A lower thread flattens the tops of the teeth only, on both parts, so the
     flanks stay where a full thread has them and a bolt and nut of the same
     height still fit; they engage over less depth."""
@@ -204,7 +206,7 @@ def thread_geometry(diameter: float, pitch: float, offset: float, internal: bool
         surface = d - 2 * h0 + 2 * trim if height < 1.0 else None  # the hole
     else:
         d = diameter - offset
-        surface = d - 2 * trim if height < 1.0 else None  # the shaft
+        surface = d - 2 * trim  # the shaft
     return {"designation": designation(d, pitch), "surface": surface,
             "tooth": height * h0}
 
@@ -256,7 +258,7 @@ def add_thread(c: Client, face: dict, diameter: float, pitch: float, offset: flo
     features = []
     if geo["surface"] is not None:
         if not info or not info.get("face_diameter") or not info.get("axis"):
-            raise RuntimeError("Can't read the face's size, so a lower thread can't be made.")
+            raise RuntimeError("Can't read the face's size, so the thread can't be sized.")
         now = info["face_diameter"]
         # positive moves the face out of the material: a shaft thicker, a hole narrower
         dist = (geo["surface"] - now) / 2 * (-1 if internal else 1)
