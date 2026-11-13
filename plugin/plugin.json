@@ -1,7 +1,7 @@
 {
   "id": "thread-generator",
   "name": "Thread Generator",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Cut a 3D-printable thread into a shaft or hole. Select its round face in the design, then Run. Hover a field for what it does. The thread is an editable feature in the timeline; one Ctrl+Z takes the whole run back.",
   "capabilities": [
     "commands@0.1"
@@ -44,12 +44,12 @@
                 "5 mm",
                 "ISO standard"
               ],
-              "default": "1 mm"
+              "default": "1.5 mm"
             },
             "tolerance": {
               "type": "string",
               "title": "Tolerance",
-              "description": "The play between the parts. This part is made looser by this much on its diameter: O.2 makes a shaft 0.2 mm thinner or a hole 0.2 mm wider. Printing both the bolt and the nut? Each gets its own tolerance, so the play adds up.\nStart with O.3 on both. A bit tight: O.35. Hard to screw in: O.4. Wobbly: O.25 or O.2. O.0 is the exact size, with no play. O.8 is very loose.",
+              "description": "The play between the parts. This part is made looser by this much on its diameter: O.2 makes a shaft 0.2 mm thinner or a hole 0.2 mm wider. Printing both the bolt and the nut? Each gets its own tolerance, so the play adds up.\nStart with O.2 on both. A bit tight: O.25 or O.3. Hard to screw in: O.35 or O.4. Wobbly: O.15 or O.1. O.0 is the exact size, with no play. O.8 is very loose.",
               "enum": [
                 "O.0",
                 "O.1",
@@ -61,12 +61,12 @@
                 "O.4",
                 "O.8"
               ],
-              "default": "O.3"
+              "default": "O.2"
             },
             "height": {
               "type": "string",
               "title": "Height",
-              "description": "How far the teeth stick out, as a share of a full ISO tooth (at a 1 mm pitch, 100% is about 0.54 mm and 75% about 0.41 mm).\nLower cuts the sharp tips of the teeth flat. Flat tips print cleaner and are less likely to bind, but the teeth grip less deep, so the thread holds less. The flanks stay where they are, so the play (Tolerance) doesn't change.\n75% suits most printers. 85-100% for a stronger thread; 70% for a coarse nozzle, or if the thread binds. Use the same height on the bolt and the nut.",
+              "description": "How far the teeth stick out, as a share of a full ISO tooth (at a 1 mm pitch, 100% is about 0.54 mm and 85% about 0.46 mm).\nLower cuts the sharp tips of the teeth flat. Flat tips print cleaner and are less likely to bind, but the teeth grip less deep, so the thread holds less. The flanks stay where they are, so the play (Tolerance) doesn't change.\n85% suits most printers. 90-100% for the strongest thread; 70-80% for a coarse nozzle, or if the thread binds. Use the same height on the bolt and the nut.",
               "enum": [
                 "100%",
                 "95%",
@@ -76,7 +76,7 @@
                 "75%",
                 "70%"
               ],
-              "default": "75%"
+              "default": "85%"
             },
             "length": {
               "type": "number",

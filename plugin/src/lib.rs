@@ -54,15 +54,15 @@ pub struct Params {
 pub fn parse_params(v: &Value) -> Result<Params, Error> {
     let text = |k: &str, d: &str| v.get(k).and_then(Value::as_str).unwrap_or(d).to_string();
     let size = sizes::parse_size(&text("size", "Auto")).map_err(|e| Error::input("size", e))?;
-    let pitch = sizes::parse_pitch(&text("pitch", "1 mm")).map_err(|e| Error::input("pitch", e))?;
+    let pitch = sizes::parse_pitch(&text("pitch", "1.5 mm")).map_err(|e| Error::input("pitch", e))?;
     let tolerance = match v.get("tolerance") {
-        Some(Value::Number(n)) => n.as_f64().unwrap_or(0.3),
-        _ => sizes::parse_tolerance(&text("tolerance", "O.3")).map_err(|e| Error::input("tolerance", e))?,
+        Some(Value::Number(n)) => n.as_f64().unwrap_or(0.2),
+        _ => sizes::parse_tolerance(&text("tolerance", "O.2")).map_err(|e| Error::input("tolerance", e))?,
     };
     if !(0.0..=2.0).contains(&tolerance) {
         return Err(Error::input("tolerance", "tolerance must be between 0 and 2 mm"));
     }
-    let height = sizes::parse_height(&text("height", "75%")).map_err(|e| Error::input("height", e))?;
+    let height = sizes::parse_height(&text("height", "85%")).map_err(|e| Error::input("height", e))?;
     let length = match v.get("length") {
         None | Some(Value::Null) => None,
         Some(x) => match x.as_f64() {
@@ -297,7 +297,7 @@ mod tests {
                     "axis": [0.0, 0.0, 1.0], "axis_point": [0.0, 0.0, 0.0], "start": 0.0, "end": 20.0}}),
                 "solid.thread" => json!({"feature": 3, "name": "Thread1", "thread": null}),
                 "solid.offset_face" => json!({"feature": 2, "name": "OffsetFace1"}),
-                "document.inspect" => json!({"timeline": [{"id": 1, "name": "Cylinder1"}, {"id": 5, "name": "External M8x1 O.3 75%"}]}),
+                "document.inspect" => json!({"timeline": [{"id": 1, "name": "Cylinder1"}, {"id": 5, "name": "External M8x1.5 O.2 85%"}]}),
                 _ => json!({}),
             })
         }
@@ -309,7 +309,7 @@ mod tests {
     }
 
     fn defaults() -> Params {
-        parse_params(&json!({"size": "Auto", "pitch": "1 mm", "tolerance": "O.3", "height": "75%"})).unwrap()
+        parse_params(&json!({"size": "Auto", "pitch": "1.5 mm", "tolerance": "O.2", "height": "85%"})).unwrap()
     }
 
     fn commands(f: &Fake) -> Vec<&str> {
@@ -328,16 +328,16 @@ mod tests {
             ]
         );
         assert_eq!(f.calls[3].1, json!({"checkpoint": 7}));
-        // the shaft is made thinner first: 7.7 less the trimmed tips, on the radius
-        let surface = 7.7 - 2.0 * 0.25 * sizes::ISO_HEIGHT;
+        // the shaft is made thinner first: 7.8 less the trimmed tips, on the radius
+        let surface = 7.8 - 2.0 * 0.15 * 1.5 * sizes::ISO_HEIGHT;
         let dist = (surface - 8.0) / 2.0;
         assert_eq!(f.calls[5].1["distance"], json!(format!("{dist:.4} mm")));
         let cut = &f.calls[7].1;
-        assert_eq!(cut["designation"], "M7.7x1");
+        assert_eq!(cut["designation"], "M7.8x1.5");
         assert_eq!(cut["modeled"], true);
         assert!((cut["face"][0].as_f64().unwrap() - surface / 2.0).abs() < 1e-9);
         // an existing thread already has this name
-        assert_eq!(out["name"], "External M8x1 O.3 75% (2)");
+        assert_eq!(out["name"], "External M8x1.5 O.2 85% (2)");
         assert_eq!(f.calls[9].1["features"], json!([2, 3]));
         assert_eq!(out["steps"], 2);
     }

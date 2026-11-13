@@ -647,27 +647,27 @@ class FaceTab(ttk.Frame):
                        "ones print well even at 0.2-0.3 mm layers; 1 mm needs a printer that\n"
                        "holds fine detail, and 1.25-1.75 mm sit in between.\n"
                        "Standard ISO sizes fit metal screws.")
-        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M8x1"), width=20)
+        self.size_cb = ttk.Combobox(self, textvariable=var("size", "M8x1.5"), width=20)
         self._row(r, "Size", self.size_cb, "diameter x pitch, mm", key="size"); r += 1
         self._tip(self.size_cb, "M8x1: 8 mm diameter, 1 mm from one thread crest to the next.\n"
                           "A larger pitch gives deeper, coarser teeth.\n"
                           "Pick one, or type your own, e.g. M9x1.5.\n"
                           "When you use a new face, the pitch you picked is kept.")
-        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.3"), values=self.TOLERANCES, width=10)
+        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
         self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter", key="tolerance"); r += 1
         self._tip(cl, "How much looser than nominal this part is, on its diameter\n"
                 "(CustomThreads' classes): a bolt gets this much smaller,\n"
                 "a hole this much larger. Printed bolt + printed nut: both get it.\n"
-                "Start with O.3 on both; O.35 if a bit tight, O.4 if hard\n"
-                "to screw in, O.25 or O.2 if loose.\n"
+                "Start with O.2 on both; O.25-O.35 if a bit tight, O.4 if hard\n"
+                "to screw in, O.15 or O.1 if loose.\n"
                 "Any number works too, e.g. 0.3.")
-        ht = ttk.Combobox(self, textvariable=var("height", "75%"), values=self.HEIGHTS, width=10)
+        ht = ttk.Combobox(self, textvariable=var("height", "85%"), values=self.HEIGHTS, width=10)
         self._row(r, "Height", ht, "how far the teeth stick out", key="height"); r += 1
         self._tip(ht, "Lower teeth with flat tops: a shaft is made thinner and a hole wider\n"
                 "before the thread is cut, so the teeth stick out less. The flanks\n"
                 "stay put, so a bolt and nut with the same height still fit, but\n"
                 "they grip over less depth (the drawing shows the grip).\n"
-                "Use the same height on both parts. 75% suits most printers;\n"
+                "Use the same height on both parts. 80% is a good low setting;\n"
                 "70% grips only about a quarter as deep as 100%.")
         ln = ttk.Entry(self, textvariable=var("length", ""), width=10)
         self._row(r, "Length", ln, "mm (blank = whole face)", key="length"); r += 1
@@ -684,7 +684,7 @@ class FaceTab(ttk.Frame):
         self.b_add = ttk.Button(self, text="Add thread", command=self.add, style="Accent.TButton")
         self.b_add.grid(row=r, column=0, columnspan=3, sticky="w", pady=(12, 4)); r += 1
         Tip(self.b_add, "Cuts the thread into the face in SolidCraft, as a modelled thread\n"
-                        "named in the timeline (\"External M8x1 O.3 75%\"). A shaft or hole\n"
+                        "named in the timeline (\"External M8x1 O.2 85%\"). A shaft or hole\n"
                         "that has to change size first gets a second step, grouped with it.\n"
                         "Undo in SolidCraft takes it back.")
         self.status = ttk.Label(self, text="", wraplength=420, justify="left")
@@ -802,9 +802,9 @@ class FaceTab(ttk.Frame):
             try:
                 pitch = self._size()[1]
             except ValueError:
-                pitch = 1.0
+                pitch = 1.5
             if pitch not in tg.PRINTED_PITCHES:
-                pitch = 1.0
+                pitch = 1.5
             names = [f"M{round(face_d)}x{pitch:g}"]
             if internal:
                 tap = f"M{round(face_d + pitch)}x{pitch:g}"
