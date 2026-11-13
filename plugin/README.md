@@ -17,7 +17,7 @@ One run is one undo step.
 |---|---|---|
 | Size | Auto | Auto fits the face. Or type `M8x1`, `M10` (pitch from Pitch) or a UNC size like `1/4-20` |
 | Pitch | 1 mm | 1, 2, 2.5, 3.5 or 5 mm (3D-printed metric), or ISO standard (metric coarse) |
-| Tolerance | O.15 | Looser by this much on each diameter: a shaft smaller, a hole larger |
+| Tolerance | O.2 | Looser by this much on each diameter: a shaft smaller, a hole larger |
 | Height | 85% | Tooth height as a share of the full ISO height; lower teeth have flat tops |
 | Length | empty | Thread length along the face; empty threads the whole face |
 

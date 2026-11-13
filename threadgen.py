@@ -25,7 +25,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 
 # --------------------------------------------------------------------------
 # Standard sizes

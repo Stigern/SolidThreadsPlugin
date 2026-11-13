@@ -577,7 +577,7 @@ class FaceTab(ttk.Frame):
                           "A larger pitch gives deeper, coarser teeth.\n"
                           "Pick one, or type your own, e.g. M9x1.5.\n"
                           "When you use a new face, the pitch you picked is kept.")
-        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.15"), values=self.TOLERANCES, width=10)
+        cl = ttk.Combobox(self, textvariable=var("tolerance", "O.2"), values=self.TOLERANCES, width=10)
         self._row(r, "Tolerance", cl, "O.2 = 0.2 mm on the diameter", key="tolerance"); r += 1
         Tip(cl, "How much looser than nominal this part is, on its diameter\n"
                 "(CustomThreads' classes): a bolt gets this much smaller,\n"

@@ -31,7 +31,7 @@ listed the standalone window in Preferences.
 1. In SolidCraft, select the round face of a shaft, or the inside of a hole.
 2. **Plugins › Add thread…**
 3. Pick the **size**, **pitch**, **tolerance** and **height**, and optionally a
-   shorter **length**. The defaults are Auto, 1 mm, O.15 and 85%.
+   shorter **length**. The defaults are Auto, 1 mm, O.2 and 85%.
 4. **Run**. SolidCraft cuts a modeled thread into the body. It's a normal
    feature in the timeline, named for example "External M8x1 O.15 85%", and one
    Ctrl+Z undoes the whole run.
