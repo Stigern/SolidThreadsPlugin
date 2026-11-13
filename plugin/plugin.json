@@ -1,7 +1,7 @@
 {
   "id": "thread-generator",
   "name": "Thread Generator",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Cut a 3D-printable thread into a shaft or hole. Select its round face in the design, then Run. Hover a field for what it does. The thread is an editable feature in the timeline; one Ctrl+Z takes the whole run back.",
   "capabilities": [
     "commands@0.1"
@@ -32,9 +32,12 @@
             "pitch": {
               "type": "string",
               "title": "Pitch",
-              "description": "Distance from one thread crest to the next. A larger pitch gives deeper, coarser teeth: they print more reliably and screw in with fewer turns, but there are fewer of them over the same length.\n1 mm: fine threads, from M4; needs a printer that holds small detail. 2 or 2.5 mm: print well at 0.2-0.3 mm layers. 3.5 or 5 mm: big, sturdy parts, from M8.\nISO standard uses the metric coarse pitch (M8: 1.25 mm), so metal screws and nuts fit.\nIgnored when Size names a pitch (M8x1).",
+              "description": "Distance from one thread crest to the next. A larger pitch gives deeper, coarser teeth: they print more reliably and screw in with fewer turns, but there are fewer of them over the same length.\n1 mm: fine threads, from M4; needs a printer that holds small detail. 1.25-1.75 mm: in between, a good choice when 1 mm is too fine and 2 mm too coarse. 2 or 2.5 mm: print well at 0.2-0.3 mm layers. 3.5 or 5 mm: big, sturdy parts, from M8.\nISO standard uses the metric coarse pitch (M8: 1.25 mm), so metal screws and nuts fit.\nIgnored when Size names a pitch (M8x1).",
               "enum": [
                 "1 mm",
+                "1.25 mm",
+                "1.5 mm",
+                "1.75 mm",
                 "2 mm",
                 "2.5 mm",
                 "3.5 mm",
@@ -46,12 +49,15 @@
             "tolerance": {
               "type": "string",
               "title": "Tolerance",
-              "description": "The play between the parts. This part is made looser by this much on its diameter: O.2 makes a shaft 0.2 mm thinner or a hole 0.2 mm wider. Printing both the bolt and the nut? Each gets its own tolerance, so the play adds up.\nStart with O.2 on both. Hard to screw in: O.4. Wobbly: O.15 or O.1. O.0 is the exact size, with no play. O.8 is very loose.",
+              "description": "The play between the parts. This part is made looser by this much on its diameter: O.2 makes a shaft 0.2 mm thinner or a hole 0.2 mm wider. Printing both the bolt and the nut? Each gets its own tolerance, so the play adds up.\nStart with O.2 on both. A bit tight: O.25 or O.3. Hard to screw in: O.35 or O.4. Wobbly: O.15 or O.1. O.0 is the exact size, with no play. O.8 is very loose.",
               "enum": [
                 "O.0",
                 "O.1",
                 "O.15",
                 "O.2",
+                "O.25",
+                "O.3",
+                "O.35",
                 "O.4",
                 "O.8"
               ],
