@@ -40,6 +40,7 @@ class Tip:
         widget.bind("<Leave>", self.hide)
 
     def show(self, _):
+        self.hide(None)  # a second <Enter> without <Leave> would leave the first tip stuck
         x = self.widget.winfo_rootx() + 20
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         self.win = tk.Toplevel(self.widget)
@@ -282,13 +283,16 @@ class App(ttk.Frame):
             d0, p0 = tg.STANDARDS[std][0][size]
             if abs(d - d0) > 1e-6 or abs(p - p0) > 1e-4:
                 size = ""  # edited away from the standard size
+        part = self.v["part"].get()
+        # a nut has no length: its field is hidden, so a blank one mustn't stop it
+        length = self._num("length", "Thread length", optional=part == "nut")
         return tg.ThreadSpec(
-            part=self.v["part"].get(), diameter=d, pitch=p, profile=profile,
+            part=part, diameter=d, pitch=p, profile=profile,
             starts=self._num("starts", "Starts", integer=True),
             left_hand=self.v["left"].get(),
             depth=self._num("depth", "Depth", optional=True),
             clearance=self._num("clearance", "Clearance"),
-            length=self._num("length", "Thread length"),
+            length=length if length is not None else tg.ThreadSpec.length,
             shank=self._num("shank", "Plain shank", optional=True) or 0.0,
             head_shape=self.v["head_shape"].get(),
             head_flats=self._num("head_flats", "Head width", optional=True),
@@ -374,19 +378,32 @@ class App(ttk.Frame):
 
         self._work("Rendering preview…", fn, done)
 
+    def _out_dir(self):
+        """The output folder, remembered so the face tab's 3MF export uses it too."""
+        out = self.v["out"].get().strip() or DEFAULT_OUT
+        if out != tg.load_settings().get("out_dir"):
+            try:
+                tg.save_settings(out_dir=out)
+            except OSError:
+                pass  # remembering it is a convenience
+        return out
+
     def save(self):
-        out = self.v["out"].get() or DEFAULT_OUT
+        out = self._out_dir()
 
         def done(res):
             self.info.configure(text=self._describe(res))
             self.status.configure(text=f"Saved to {out}")
             if sys.platform == "win32":
-                os.startfile(out)
+                try:
+                    os.startfile(out)
+                except OSError:
+                    pass  # saved; showing the folder is a convenience
 
         self._work("Saving…", lambda spec: tg.generate(spec, out), done)
 
     def open_sc(self):
-        out = self.v["out"].get() or DEFAULT_OUT
+        out = self._out_dir()
 
         def fn(spec):
             res = tg.generate(spec, out, design=True)
@@ -763,7 +780,7 @@ class FaceTab(ttk.Frame):
     @staticmethod
     def _describe(info):
         kind = "Hole" if info["internal"] else "Shaft"
-        length = info["end"] - info["start"]
+        length = abs(info["end"] - info["start"])  # start and end run along the axis, either way
         size = f"Ø{info['face_diameter']:.4g} mm, " if info.get("face_diameter") else ""
         return (f"{kind} on {info['body']}: {size}{length:g} mm long "
                 f"(ISO would be {info['designation']}).")
@@ -852,7 +869,7 @@ class FaceTab(ttk.Frame):
         def fn(c):
             sel = (c.call("ui.selection") or {}).get("selection") or []
             bodies = sorted({s["body"] for s in sel if s.get("body")})
-            doc = c.call("document.inspect") or {}
+            doc = c.call("document.inspect", {"timeline": False, "bodies": False}) or {}  # the name only
             name = str(doc.get("name") or doc.get("title") or "design")
             stem = "".join(ch if ch.isalnum() or ch in "-_ ." else "_" for ch in
                            (name + ("_" + "_".join(bodies) if bodies else ""))).strip() or "design"
