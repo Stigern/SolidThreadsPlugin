@@ -3,4 +3,5 @@ dist/
 release/
 __pycache__/
 *.spec
-plugin.json
+/plugin.json
+target/
