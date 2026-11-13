@@ -6,7 +6,9 @@
 
 /// The pitches of the 3D-printed metric standard, after CustomThreads
 /// (github.com/BalzGuenat/CustomThreads, MIT), with the smallest diameter each one is offered on.
-pub const PRINTED_PITCHES: [(f64, f64); 5] = [(1.0, 4.0), (2.0, 4.0), (2.5, 6.0), (3.5, 8.0), (5.0, 8.0)];
+/// 1.25, 1.5 and 1.75 mm fill the gap between the fine 1 mm and the coarse 2 mm.
+pub const PRINTED_PITCHES: [(f64, f64); 8] =
+    [(1.0, 4.0), (1.25, 4.0), (1.5, 4.0), (1.75, 4.0), (2.0, 4.0), (2.5, 6.0), (3.5, 8.0), (5.0, 8.0)];
 
 /// ISO metric coarse: name, major diameter, pitch (mm).
 pub const ISO_COARSE: [(&str, f64, f64); 21] = [
@@ -31,8 +33,9 @@ pub const UNC: [(&str, f64, f64); 11] = [
 pub const ISO_HEIGHT: f64 = 0.54127;
 
 /// The choices of the dialog's fields, as the manifest lists them.
-pub const PITCH_CHOICES: [&str; 6] = ["1 mm", "2 mm", "2.5 mm", "3.5 mm", "5 mm", "ISO standard"];
-pub const TOLERANCE_CHOICES: [&str; 6] = ["O.0", "O.1", "O.15", "O.2", "O.4", "O.8"];
+pub const PITCH_CHOICES: [&str; 9] =
+    ["1 mm", "1.25 mm", "1.5 mm", "1.75 mm", "2 mm", "2.5 mm", "3.5 mm", "5 mm", "ISO standard"];
+pub const TOLERANCE_CHOICES: [&str; 9] = ["O.0", "O.1", "O.15", "O.2", "O.25", "O.3", "O.35", "O.4", "O.8"];
 pub const HEIGHT_CHOICES: [&str; 7] = ["100%", "95%", "90%", "85%", "80%", "75%", "70%"];
 
 /// The Pitch field: one of the printed pitches, or the ISO standard pitch for the diameter.
@@ -77,7 +80,7 @@ pub fn parse_pitch(s: &str) -> Result<Pitch, String> {
     if PRINTED_PITCHES.iter().any(|(p, _)| *p == n) {
         Ok(Pitch::Printed(n))
     } else {
-        Err(format!("pitch {t:?} is not one of 1, 2, 2.5, 3.5 or 5 mm; type the size as M8x{} instead", fmt(n, 4)))
+        Err(format!("pitch {t:?} is not one of 1, 1.25, 1.5, 1.75, 2, 2.5, 3.5 or 5 mm; type the size as M8x{} instead", fmt(n, 4)))
     }
 }
 
@@ -359,7 +362,8 @@ mod tests {
     fn fields() {
         assert_eq!(parse_pitch("2.5 mm"), Ok(Pitch::Printed(2.5)));
         assert_eq!(parse_pitch("ISO standard"), Ok(Pitch::Iso));
-        assert!(parse_pitch("1.5 mm").is_err());
+        assert_eq!(parse_pitch("1.5 mm"), Ok(Pitch::Printed(1.5)));
+        assert!(parse_pitch("3 mm").is_err());
         assert_eq!(parse_tolerance("O.15"), Ok(0.15));
         assert_eq!(parse_tolerance("O.0"), Ok(0.0));
         assert_eq!(parse_tolerance("0.3"), Ok(0.3));
@@ -393,6 +397,11 @@ mod tests {
         assert_eq!(choose_size(&Size::Auto, Pitch::Printed(5.0), &hole(5.0)), Ok((10.0, 5.0)));
         assert!(choose_size(&Size::Auto, Pitch::Printed(3.5), &shaft(6.0)).is_err());
         assert_eq!(choose_size(&Size::Auto, Pitch::Iso, &shaft(8.0)), Ok((8.0, 1.25)));
+        // the pitches between fine and coarse
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.5), &shaft(14.0)), Ok((14.0, 1.5)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.5), &hole(14.0)), Ok((14.0, 1.5)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.5), &hole(6.5)), Ok((8.0, 1.5)));
+        assert_eq!(choose_size(&Size::Auto, Pitch::Printed(1.75), &shaft(4.0)), Ok((4.0, 1.75)));
     }
 
     #[test]

@@ -25,7 +25,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 
 # --------------------------------------------------------------------------
 # Standard sizes
@@ -71,12 +71,13 @@ PRINT_FRIENDLY = {
 # A 2.5 mm pitch is added for smaller parts (from M6), where 3.5 is very coarse,
 # an experimental 2 mm pitch from M4 (on M4-M5 the core is thin: about half the
 # diameter), and a fine 1 mm pitch on every size from M4 for printers that hold
-# small detail well.
-PRINTED_PITCHES = (1.0, 2.0, 2.5, 3.5, 5.0)
-_PRINTED_FROM = {1.0: 4, 2.0: 4, 2.5: 6, 3.5: 8, 5.0: 8}  # smallest diameter per pitch
+# small detail well. 1.25, 1.5 and 1.75 mm fill the gap between fine and coarse,
+# also from M4.
+PRINTED_PITCHES = (1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.5, 5.0)
+_PRINTED_FROM = {1.0: 4, 1.25: 4, 1.5: 4, 1.75: 4, 2.0: 4, 2.5: 6, 3.5: 8, 5.0: 8}  # smallest diameter per pitch
 PRINTED_METRIC = {f"M{d}x{p:g}": (float(d), p) for d in range(4, 51)
                   for p in PRINTED_PITCHES if d >= _PRINTED_FROM[p]}
-PRINTED = "3D-printed metric (1/2/2.5/3.5/5 mm pitch)"
+PRINTED = "3D-printed metric (1-5 mm pitch)"
 
 STANDARDS = {
     PRINTED: (PRINTED_METRIC, "iso"),

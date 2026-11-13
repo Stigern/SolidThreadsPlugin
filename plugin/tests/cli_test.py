@@ -173,6 +173,13 @@ for h in ("85%", "100%"):
 bolt, nut, volume, _ = mate(8, 6.8, {"size": "Auto", "pitch": "1 mm", "tolerance": "O.15", "height": "85%"})
 check("Ø8 shaft and Ø6.8 tap-drilled hole: both M8x1 and engage", bolt == nut == "M8x1" and volume > 1, f"{bolt} / {nut}, {volume:.1f} mm³")
 
+# The pitches between fine and coarse, and the tolerances between O.2 and O.4: cut and engage
+for d, pitch, tol in ((14, "1.5 mm", "O.3"), (8, "1.25 mm", "O.25"), (10, "1.75 mm", "O.35")):
+    bolt, nut, volume, _ = mate(d, d, {"size": "Auto", "pitch": pitch, "tolerance": tol, "height": "85%"})
+    want = f"M{d}x{pitch.split()[0]}"
+    check(f"Ø{d} shaft and hole, {pitch}, {tol}: both {want} and engage", bolt == nut == want and volume > 1,
+          f"{bolt} / {nut}, {volume:.1f} mm³")
+
 # Errors: nothing selected, a flat face, a pitch too coarse for the shaft
 _, err = run(SHAFT + [thread({"size": "Auto", "pitch": "1 mm", "tolerance": "O.15", "height": "85%"})], fail_ok=True)
 check("nothing selected: says to select a face", "Select a cylindrical face" in err, err.strip()[-200:])

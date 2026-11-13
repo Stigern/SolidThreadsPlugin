@@ -60,7 +60,8 @@ The default standard, *3D-printed metric*, follows
 [CustomThreads](https://github.com/BalzGuenat/CustomThreads) (MIT): the ISO 60°
 profile with a coarse pitch, 3.5 or 5 mm for M8–M50, plus 2.5 mm for M6–M50,
 an experimental 2 mm pitch for M4–M50 (on M4–M5 the core left inside the thread
-is only about half the diameter) and a fine 1 mm pitch for M4–M50. Fine threads
+is only about half the diameter), a fine 1 mm pitch for M4–M50, and 1.25, 1.5
+and 1.75 mm for M4–M50, between fine and coarse. Fine threads
 are shallow: 1 mm pitch is about 0.54 mm deep, which needs a printer that holds
 small detail; 2.5 mm is about 1.35 mm deep and 3.5 mm about 1.9 mm. ISO metric
 (M1–M48, including M4x0.7), fine and UNC sizes are there for parts that must fit
@@ -70,10 +71,12 @@ Model the parts at the nominal size: a shaft at the thread diameter (8 mm for
 M8x1), and a hole at diameter − pitch (7 mm for M8x1). The generator picks the
 size from that, and warns when a hole doesn't match the thread.
 
-**Tolerance** uses CustomThreads' classes (O.0, O.1, O.15, O.2, O.4, O.8):
+**Tolerance** uses CustomThreads' classes (O.0, O.1, O.15, O.2, O.4, O.8),
+plus O.25, O.3 and O.35 between O.2 and O.4:
 O.2 makes this part 0.2 mm looser on each diameter (a shaft 0.2 mm smaller, a
 hole 0.2 mm larger). Printing both a bolt and a nut? Give both a class: start
-with O.2 on both, go to O.4 if it's tight, O.15 or O.1 if it's loose. The
+with O.2 on both, go to O.25-O.35 if it's a bit tight, O.4 if it's hard to
+screw in, O.15 or O.1 if it's loose. The
 standalone window also takes any number in mm.
 
 **Height** sets how far the teeth stick out: 100% is the full ISO height;
