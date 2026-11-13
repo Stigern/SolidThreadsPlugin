@@ -54,8 +54,11 @@ class NotRunning(RuntimeError):
 
 
 class Client:
-    def __init__(self, port: int | None = None, token: str | None = None, timeout: float = 120):
+    # A modeled thread or a 3MF export of a big design can take minutes; the timeout is how
+    # long one reply may take, not the whole session.
+    def __init__(self, port: int | None = None, token: str | None = None, timeout: float = 600):
         self.sock = None
+        self.file = None
         errors = []
         ports = [port] if port else candidate_ports()
         for p in ports:
@@ -101,9 +104,12 @@ class Client:
 
     def close(self):
         try:
+            if self.file:
+                self.file.close()
             if self.sock:
                 self.sock.close()
         finally:
+            self.file = None
             self.sock = None
 
     def __enter__(self):
@@ -227,7 +233,9 @@ def _point_at_radius(info: dict, point, radius: float):
 
 def _unique_name(c: Client, base: str) -> str:
     try:
-        taken = {t.get("name") for t in c.call("document.inspect").get("timeline") or []}
+        # names only: no body measurements, which take long on a big design
+        doc = c.call("document.inspect", {"timeline": "summary", "bodies": False})
+        taken = {t.get("name") for t in doc.get("timeline") or []}
     except RuntimeError:
         taken = set()
     label, k = base, 2

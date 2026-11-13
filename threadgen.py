@@ -14,6 +14,7 @@ twice the clearance between them, and each still fits a nominal metal part.
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import math
 import os
@@ -124,6 +125,7 @@ def iso_hex_across_flats(d: float) -> float:
 # --------------------------------------------------------------------------
 
 PART_TYPES = ("bolt", "rod", "nut", "pair", "cutter")
+SHAPES = ("hex", "round", "square")  # head and nut outlines
 PART_LABELS = {
     "bolt": "Bolt (hex head)",
     "rod": "Threaded rod",
@@ -163,6 +165,15 @@ class ThreadSpec:
             raise ValueError(f"unknown part {s.part!r}")
         if s.profile not in PROFILES:
             raise ValueError(f"unknown profile {s.profile!r}")
+        for shape, what in ((s.head_shape, "head"), (s.nut_shape, "nut")):
+            if shape not in SHAPES:
+                raise ValueError(f"{what} shape must be one of {', '.join(SHAPES)}")
+        # "nan" and "inf" parse as floats: refuse them before they reach the mesh
+        for key in ("diameter", "pitch", "depth", "clearance", "length", "shank", "head_height",
+                    "head_flats", "nut_height", "nut_flats", "chamfer"):
+            x = getattr(s, key)
+            if x is not None and not math.isfinite(x):
+                raise ValueError(f"{key.replace('_', ' ')} must be a finite number")
         if s.diameter <= 0 or s.pitch <= 0:
             raise ValueError("diameter and pitch must be positive")
         if s.starts < 1:
@@ -185,8 +196,14 @@ class ThreadSpec:
             s.nut_height = round(0.8 * s.diameter + 0.5, 2)
         if s.head_flats <= s.diameter or s.nut_flats <= s.diameter:
             raise ValueError("head and nut must be wider than the thread")
+        if s.head_height <= 0 or s.nut_height <= 0:
+            raise ValueError("head and nut height must be positive")
         if s.length <= 0:
             raise ValueError("length must be positive")
+        if s.shank < 0:
+            raise ValueError("plain shank can't be negative")
+        if s.chamfer < 0:
+            raise ValueError("chamfer can't be negative")
         if s.quality not in QUALITY:
             raise ValueError(f"quality must be one of {', '.join(QUALITY)}")
         return s
@@ -307,14 +324,23 @@ class Mesh:
         self.f.extend((a + base, b + base, c + base) for a, b, c in other.f)
 
     def check_closed(self) -> tuple[bool, str]:
-        edges: dict[tuple[int, int], int] = {}
-        for a, b, c in self.f:
-            for e in ((a, b), (b, c), (c, a)):
-                edges[e] = edges.get(e, 0) + 1
-        bad = 0
-        for (a, b), n in edges.items():
-            if n != 1 or edges.get((b, a), 0) != 1:
-                bad += 1
+        # Each directed edge a->b as one integer. A closed, consistently wound mesh uses every
+        # directed edge exactly once and its reverse exactly once too.
+        n = len(self.v) + 1
+        f = self.f
+        keys = [a * n + b for a, b, _ in f]
+        keys += [b * n + c for _, b, c in f]
+        keys += [c * n + a for a, _, c in f]
+        edges = set(keys)
+        if len(edges) == len(keys):  # no directed edge twice: closed if every reverse is there
+            rev = [b * n + a for a, b, _ in f]
+            rev += [c * n + b for _, b, c in f]
+            rev += [a * n + c for a, _, c in f]
+            if edges.issuperset(rev):
+                return True, "watertight"
+        counts = collections.Counter(keys)
+        bad = sum(1 for k, m in counts.items()
+                  if m != 1 or counts.get((k % n) * n + k // n, 0) != 1)
         if bad:
             return False, f"{bad} open or non-manifold edges"
         return True, "watertight"
@@ -718,8 +744,12 @@ def main(argv=None):
     d, p, prof = a.diameter, a.pitch, a.profile
     if a.size:
         for table, kind in STANDARDS.values():
-            if a.size in table:
-                d0, p0 = table[a.size]
+            # exact name first, then any case: "m8" is M8, "tr8x2" is Tr8x2
+            name = a.size if a.size in table else next(
+                (n for n in table if n.lower() == a.size.strip().lower()), None)
+            if name:
+                a.size = name
+                d0, p0 = table[name]
                 d = d if d is not None else d0
                 p = p if p is not None else p0
                 prof = prof or kind
@@ -738,14 +768,14 @@ def main(argv=None):
                       size=a.size or "")
     try:
         res = generate(spec, a.out, design=a.design or a.open)
-    except (ValueError, RuntimeError) as e:
+        if sys.stdout:
+            print(json.dumps(res, indent=2))
+        if a.open:
+            open_in_solidcraft(res["design"])
+    except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         if sys.stderr:  # None in the windowed .exe
             print(f"error: {e}", file=sys.stderr)
         return 1
-    if sys.stdout:
-        print(json.dumps(res, indent=2))
-    if a.open:
-        open_in_solidcraft(res["design"])
     return 0
 
 
