@@ -21,6 +21,8 @@ One run is one undo step.
 | Height | 85% | Tooth height as a share of the full ISO height; lower teeth have flat tops |
 | Length | empty | Thread length along the face; empty threads the whole face |
 
+Hover over a field in the dialog to see what it does and which value to start with.
+
 With **Auto** a shaft gets its own diameter (Ø8 → M8x1), and so does a hole of a whole
 millimetre (Ø14 → M14x1), so a shaft and a hole modelled at the same diameter fit each other.
 Any other hole is read as a tap drill and gets the size whose tap drill it is (Ø6.8 with a 1 mm
