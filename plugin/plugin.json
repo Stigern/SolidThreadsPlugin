@@ -1,7 +1,7 @@
 {
   "id": "thread-generator",
   "name": "Thread Generator",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Cut a 3D-printable thread into the selected shaft or hole: printed pitches, tolerance classes O.0-O.8 and lower teeth. The thread is an editable feature in the timeline.",
   "capabilities": [
     "commands@0.1"
@@ -55,7 +55,7 @@
                 "O.4",
                 "O.8"
               ],
-              "default": "O.15"
+              "default": "O.2"
             },
             "height": {
               "type": "string",
