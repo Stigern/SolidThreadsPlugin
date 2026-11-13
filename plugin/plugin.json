@@ -1,7 +1,7 @@
 {
   "id": "thread-generator",
   "name": "Thread Generator",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Cut a 3D-printable thread into the selected shaft or hole: printed pitches, tolerance classes O.0-O.8 and lower teeth. The thread is an editable feature in the timeline.",
   "capabilities": [
     "commands@0.1"
@@ -24,7 +24,7 @@
             "size": {
               "type": "string",
               "title": "Size",
-              "description": "Auto fits the selected face. Or type a size: M8x1 (diameter x pitch), M10 (diameter, pitch from Pitch), or a UNC size like 1/4-20.",
+              "description": "Auto fits the selected face: a shaft or a whole-mm hole gets its own diameter (Ø14 -> M14), any other hole is read as a tap drill (Ø6.8 -> M8). Or type a size: M8x1 (diameter x pitch), M10 (diameter, pitch from Pitch), or a UNC size like 1/4-20.",
               "default": "Auto",
               "minLength": 1,
               "maxLength": 32

@@ -65,7 +65,7 @@ def check(name, ok, detail=""):
 SHAFT = [{"command": "solid.cylinder", "params": {"diameter": 8, "height": 20, "operation": "new", "body_name": "Shaft"}}]
 HOLE = [
     {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 15, "center": [0, 0, 7.5], "operation": "new", "body_name": "Block"}},
-    {"command": "solid.cylinder", "params": {"diameter": 7, "height": 15, "operation": "cut", "targets": ["Block"]}},
+    {"command": "solid.cylinder", "params": {"diameter": 7.2, "height": 15, "operation": "cut", "targets": ["Block"]}},
 ]
 INSPECT = [
     {"command": "document.inspect", "params": {"timeline": "summary", "bodies": False}},
@@ -115,10 +115,10 @@ out, res = case("shaft typed M8x2 O.0 length 10", SHAFT, "Shaft", [4, 0, 10],
 check("length 10: less material cut than the whole face", res[-1]["bodies"][0]["volume_mm3"] > full_length + 1,
       f"{res[-1]['bodies'][0]['volume_mm3']:.1f} vs {full_length:.1f} mm³")
 
-# A hole: Ø7 is the tap drill of M8x1, so Auto picks M8x1 and makes it looser
-hole_point = [3.5, 0, 7.5]
+# A hole: Ø7.2 is a tap drill of M8x1, so Auto picks M8x1 and makes it looser
+hole_point = [3.6, 0, 7.5]
 sc = os.path.join(TMP, "hole.sc")
-out, res = case("hole Ø7 O.2 100%", HOLE, "Block", hole_point,
+out, res = case("hole Ø7.2 O.2 100%", HOLE, "Block", hole_point,
                 {"size": "Auto", "pitch": "1 mm", "tolerance": "O.2", "height": "100%"},
                 "Internal M8x1 O.2", "M8.2x1", save=sc)
 check("hole: no drill hint for the right drill", out["hint"] is None, str(out["hint"]))
@@ -126,16 +126,52 @@ reopened, _ = run([{"command": "document.inspect", "params": {"timeline": "summa
 check("hole: saved design reopens with the thread", "Internal M8x1 O.2" in [f["name"] for f in reopened[0]["timeline"]])
 
 # Holes at a lower height: opened up first
-out, res = case("hole Ø7 80%", HOLE, "Block", hole_point,
+out, res = case("hole Ø7.2 80%", HOLE, "Block", hole_point,
                 {"size": "Auto", "pitch": "1 mm", "tolerance": "O.15", "height": "80%"},
                 "Internal M8x1 O.15 80%", "M8.15x1")
 check("hole 80%: two steps", out["steps"] == 2)
+
+# A full-height hole narrower than the thread's teeth reach (SolidCraft refuses to cut it) is
+# opened up to the thread's minor diameter first
+NARROW = [HOLE[0], {"command": "solid.cylinder", "params": {"diameter": 6.8, "height": 15, "operation": "cut", "targets": ["Block"]}}]
+out, res = case("hole Ø6.8 O.2 100%", NARROW, "Block", [3.4, 0, 7.5],
+                {"size": "Auto", "pitch": "1 mm", "tolerance": "O.2", "height": "100%"},
+                "Internal M8x1 O.2", "M8.2x1")
+check("hole Ø6.8 100%: opened to the minor diameter, then threaded",
+      out["steps"] == 2 and abs(out["surface_diameter"] - (8.2 - 2 * ISO_HEIGHT)) < 1e-6, f"{out['steps']} steps, {out['surface_diameter']}")
 
 # A second thread with the same settings gets its own name
 two = SHAFT + [{"command": "solid.cylinder", "params": {"diameter": 8, "height": 20, "operation": "new", "body_name": "Shaft2", "base": [20, 0, 0]}}]
 res, _ = run(two + [select("Shaft", [4, 0, 10]), thread({"size": "Auto", "pitch": "1 mm", "tolerance": "O.2", "height": "100%"}),
                     select("Shaft2", [24, 0, 10]), thread({"size": "Auto", "pitch": "1 mm", "tolerance": "O.2", "height": "100%"})])
 check("second thread: unique name", res[-1]["name"] == "External M8x1 O.2 (2)", res[-1]["name"])
+
+# A shaft and a hole modelled at the same whole millimetre get the same size and engage: the
+# hole's teeth reach inside the shaft's crests (once both were cut a size apart and fell through).
+def mate(shaft_d, hole_d, params):
+    setup = [
+        {"command": "solid.cylinder", "params": {"diameter": shaft_d, "height": 20, "operation": "new", "body_name": "Bolt", "base": [100, 0, 0]}},
+        {"command": "solid.box", "params": {"length": 60, "width": 60, "height": 15, "center": [0, 0, 7.5], "operation": "new", "body_name": "Nut"}},
+        {"command": "solid.cylinder", "params": {"diameter": hole_d, "height": 15, "operation": "cut", "targets": ["Nut"]}},
+        select("Bolt", [100 + shaft_d / 2, 0, 10]), thread(params), select("Nut", [hole_d / 2, 0, 7.5]), thread(params),
+    ]
+    res, _ = run(setup + [{"command": "inspect.measure", "params": {}}])
+    bolt = [b for b in res[-1]["bodies"] if b["name"] == "Bolt"][0]
+    crest = bolt["bbox"]["max"][1] - bolt["bbox"]["min"][1]
+    inside, err = run(setup + [
+        {"command": "solid.cylinder", "params": {"diameter": crest, "height": 13, "base": [0, 0, 1], "operation": "intersect", "targets": ["Nut"]}},
+        {"command": "inspect.measure", "params": {}}], fail_ok=True)
+    volume = sum(b["volume_mm3"] for b in inside[-1]["bodies"] if b["name"] == "Nut") if inside else 0.0
+    return res[4]["size"], res[6]["size"], volume, res[6]["hint"]
+
+
+for h in ("85%", "100%"):
+    bolt, nut, volume, hint = mate(14, 14, {"size": "Auto", "pitch": "1 mm", "tolerance": "O.15", "height": h})
+    check(f"Ø14 shaft and Ø14 hole {h}: both M14x1", bolt == nut == "M14x1", f"{bolt} / {nut}")
+    check(f"Ø14 shaft and Ø14 hole {h}: the threads engage", volume > 1, f"{volume:.1f} mm³ of the nut inside the bolt's crests")
+    check(f"Ø14 hole {h}: no drill hint", hint is None, str(hint))
+bolt, nut, volume, _ = mate(8, 6.8, {"size": "Auto", "pitch": "1 mm", "tolerance": "O.15", "height": "85%"})
+check("Ø8 shaft and Ø6.8 tap-drilled hole: both M8x1 and engage", bolt == nut == "M8x1" and volume > 1, f"{bolt} / {nut}, {volume:.1f} mm³")
 
 # Errors: nothing selected, a flat face, a pitch too coarse for the shaft
 _, err = run(SHAFT + [thread({"size": "Auto", "pitch": "1 mm", "tolerance": "O.15", "height": "85%"})], fail_ok=True)

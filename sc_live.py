@@ -258,6 +258,12 @@ def add_thread(c: Client, face: dict, diameter: float, pitch: float, offset: flo
     face. Each step is undoable in SolidCraft; the steps are named and, when
     there are two, grouped in the timeline."""
     geo = thread_geometry(diameter, pitch, offset, internal, height)
+    if geo["surface"] is None and internal and info and info.get("face_diameter"):
+        # a full-height hole narrower than the teeth reach: SolidCraft refuses to cut it, so
+        # open it up to the thread's minor diameter first
+        minor = diameter + offset - 2 * ISO_HEIGHT * pitch
+        if info["face_diameter"] < minor - 1e-3:
+            geo["surface"] = minor
     point = face["point"]
     nominal = f"M{diameter:g}x{pitch:g}"
     kind = "Internal" if internal else "External"
